@@ -41,26 +41,36 @@ return [
         /**
          * Disk untuk file yang diakses lewat URL publik (foto bukti barcode).
          *
-         * Otomatis-arahkan ke Cloudflare R2 kalau AWS_ENDPOINT diisi, dan
+         * Otomatis-arahkan ke object storage S3-compatible (Cloudflare R2,
+         * Supabase Storage, Backblaze B2, ...) kalau AWS_ENDPOINT diisi, dan
          * tetap lokal kalau tidak. Alasannya: `PhotoUploadService` menyimpan
          * dengan disk 'public' secara hardcode, jadi yang perlu diubah adalah
          * definisi disk 'public' itu sendiri, bukan kode service.
          *
-         * Kenapa R2 wajib di Render: free tier tidak punya persistent disk,
-         * jadi file yang ditulis ke storage lokal container akan hilang pada
-         * setiap deploy/restart. R2 free memberi 10 GB dan tidak butuh kartu
-         * kredit.
+         * Kenapa object storage wajib di Render: free tier tidak punya
+         * persistent disk, jadi file yang ditulis ke storage lokal container
+         * akan hilang pada setiap deploy/restart.
+         *
+         * Catatan pindah provider: hanya 7 env var yang berubah
+         * (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_ENDPOINT, AWS_BUCKET,
+         * AWS_URL, AWS_DEFAULT_REGION, AWS_USE_PATH_STYLE_ENDPOINT). Tidak
+         * ada kode yang perlu disunting. Perhatikan `AWS_URL` dan
+         * `AWS_USE_PATH_STYLE_ENDPOINT` — keduanya format-nya beda per
+         * provider, lihat render.yaml.
          */
         'public' => env('AWS_ENDPOINT') ? [
             'driver' => 's3',
             'key' => env('AWS_ACCESS_KEY_ID'),
             'secret' => env('AWS_SECRET_ACCESS_KEY'),
-            // R2 selalu memakai region "auto" — tidak ada region sungguhan.
-            'region' => env('AWS_DEFAULT_REGION', 'auto'),
+            // Default-nya us-east-1 (bukan "auto") supaya konsisten dengan
+            // config/cache.php, queue.php, dan services.php. Nilai "auto"
+            // hanya sah untuk Cloudflare R2; Supabase/B2 butuh kode region
+            // sungguhan dan akan gagal dengan SignatureDoesNotMatch kalau
+            // ketinggal "auto".
+            'region' => env('AWS_DEFAULT_REGION', 'us-east-1'),
             'bucket' => env('AWS_BUCKET'),
-            // URL publik bucket. Untuk R2 ini bentuknya
-            // https://<nama-pub-subdomain>.r2.dev (dari dashboard R2).
-            // Kalau kosong, link foto tidak bisa dibuka.
+            // URL publik bucket. Untuk R2: https://<nama-pub>.r2.dev
+            // Untuk Supabase: https://<ref>.supabase.co/storage/v1/object/public/<bucket>
             'url' => env('AWS_URL'),
             'endpoint' => env('AWS_ENDPOINT'),
             'use_path_style_endpoint' => env('AWS_USE_PATH_STYLE_ENDPOINT', false),
@@ -80,7 +90,7 @@ return [
             'driver' => 's3',
             'key' => env('AWS_ACCESS_KEY_ID'),
             'secret' => env('AWS_SECRET_ACCESS_KEY'),
-            'region' => env('AWS_DEFAULT_REGION', 'auto'),
+            'region' => env('AWS_DEFAULT_REGION', 'us-east-1'),
             'bucket' => env('AWS_BUCKET'),
             'url' => env('AWS_URL'),
             'endpoint' => env('AWS_ENDPOINT'),

@@ -84,10 +84,30 @@ services:
       - key: DB_PASSWORD
         sync: false
 
-      # --- Foto bukti barcode: Cloudflare R2 ---
-      # BUCKET_URL harus berupa public URL bucket:
-      #   https://<nama-pub-subdomain>.r2.dev
-      # (bukan endpoint API yang berakhiran r2.cloudflarestorage.com)
+      # --- Foto bukti barcode: object storage S3-compatible ---
+      #
+      # Bisa Cloudflare R2, Supabase Storage, atau Backblaze B2. Kode aplikasi
+      # memakai Laravel S3 driver, jadi pindah provider cukup ganti 5 env var
+      # di bawah — tidak ada kode PHP yang perlu disentuh.
+      #
+      # ⚠️ `AWS_URL` dan `AWS_USE_PATH_STYLE_ENDPOINT` BEDA per provider.
+      # Nilai di bawah disetel untuk SUPABASE. Kalau ganti provider, wajib
+      # disesuaikan lagi:
+      #
+      #   Cloudflare R2
+      #     AWS_ENDPOINT                = https://<account-id>.r2.cloudflarestorage.com
+      #     AWS_URL                    = https://amanah-bukti.<xxxx>.r2.dev
+      #     AWS_DEFAULT_REGION          = auto
+      #     AWS_USE_PATH_STYLE_ENDPOINT = false
+      #
+      #   Supabase Storage  ← dipakai sekarang
+      #     AWS_ENDPOINT                = https://<ref>.storage.supabase.co/storage/v1/s3
+      #     AWS_URL                    = https://<ref>.supabase.co/storage/v1/object/public/amanah-bukti
+      #     AWS_DEFAULT_REGION          = ap-southeast-1   (dari halaman Storage → S3 Access Keys)
+      #     AWS_USE_PATH_STYLE_ENDPOINT = true
+      #
+      # AWS_URL harus URL PUBLIK bucket, BUKAN endpoint S3. Salah di sini =
+      # foto berhasil ter-upload tapi link-nya 403/404 saat dibuka.
       - key: AWS_ACCESS_KEY_ID
         sync: false
       - key: AWS_SECRET_ACCESS_KEY
@@ -98,11 +118,13 @@ services:
         value: amanah-bukti
       - key: AWS_URL
         sync: false
-      # R2 tidak punya region sungguhan; "auto" adalah nilai yang diwajibkan.
+      # sync:false, bukan hardcode: tiap provider punya format region berbeda
+      # ("auto" hanya sah untuk R2; Supabase butuh kode region sungguhan).
       - key: AWS_DEFAULT_REGION
-        value: auto
+        sync: false
+      # Supabase hanya menerima path-style endpoint. R2/B2 bisa virtual-host.
       - key: AWS_USE_PATH_STYLE_ENDPOINT
-        value: "false"
+        value: "true"
 
       # --- Cache, queue, session ---
       # Semua pakai driver database: tidak butuh Redis, dan tidak butuh

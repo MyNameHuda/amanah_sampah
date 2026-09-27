@@ -6,7 +6,7 @@ Jalur ini memenuhi syarat: **tidak ada satu pun layanan yang meminta kartu kredi
 |---|---|---|---|
 | Render | Backend + frontend (satu service) | 750 jam/bulan | Tidak |
 | Neon | Database PostgreSQL | 0.5 GB, permanen | Tidak |
-| Cloudflare R2 | Foto bukti barcode | 10 GB | Tidak |
+| Supabase Storage | Foto bukti barcode | 1 GB | Tidak |
 | UptimeRobot | Pings supaya tidak tidur | 50 monitor | Tidak |
 
 Total biaya: **$0.**
@@ -44,7 +44,8 @@ Render free web service  (Docker)
    └─ cron loop (schedule:run tiap menit)
         │
         ├── Neon PostgreSQL   (data: user, poin, transaksi, audit)
-        └── Cloudflare R2     (foto bukti barcode)
+        └── Object storage S3-compatible
+                              (foto bukti barcode: Supabase Storage / Cloudflare R2)
 ```
 
 Satu domain menyajikan API **dan** frontend. Tidak ada CORS, tidak ada domain
@@ -95,24 +96,80 @@ Yang perlu dicatat (semua ada di panel Connection String):
 
 ---
 
-## Langkah 3 — Buat bucket di Cloudflare R2 (5 menit)
+## Langkah 3 — Buat bucket object storage (5 menit)
+
+Aplikasi memakai **Laravel S3 driver**, jadi storage yang dipakai bisa berupa
+object storage S3-compatible mana saja. Pilihan saat ini: **Supabase Storage**
+(utama) atau **Cloudflare R2**.
+
+| | Supabase Storage | Cloudflare R2 |
+|---|---|---|
+| Free tier | 1 GB | 10 GB |
+| Kartu kredit | Tidak | Tidak |
+| Egress | 5 GB | **Nol selamanya** |
+| Region Asia | ✅ Singapore | ✅ Asia Pacific |
+| ⚠️ | Project **di-pause setelah 1 minggu idle** | Tidak ada auto-pause |
+
+> **Penting untuk R2:** egress-nya gratis tanpa batas, jadi R2 lebih aman kalau
+> foto dipakai sering. **Penting untuk Supabase:** kuota 1 GB lebih kecil tapi
+> project tidak akan freeze di tengah semester kalau idle seminggu.
+
+### Opsi A — Supabase Storage (dipakai sekarang)
+
+1. <https://supabase.com> → **New project** → **Region: Northeast Asia (Singapore)**
+2. Tunggu project selesai dibuat (~2 menit)
+3. Sidebar → **Storage** → **New bucket**
+   - Name: `amanah-bukti`
+   - **Public bucket: ON** ← wajib. `VerifikasiController` membuat URL foto
+     langsung tanpa login, jadi bucket harus bisa dibaca publik.
+4. **Storage → S3 Access Keys** (kalau belum ada, toggle **Enable S3 protocol** dulu)
+   → **Create new access keys**, salin **Access Key ID** + **Secret Access Key**
+   (⚠️ **sekali saja, tidak bisa dilihat lagi**)
+5. Di halaman yang sama, catat **Region** (mis. `ap-southeast-1`) dan **S3 endpoint**
+
+Nilai yang dipakai:
+
+| Yang dicatat | Nilai env var |
+|---|---|
+| Access Key ID | `AWS_ACCESS_KEY_ID` |
+| Secret Access Key | `AWS_SECRET_ACCESS_KEY` |
+| S3 endpoint | `https://<ref>.storage.supabase.co/storage/v1/s3` → `AWS_ENDPOINT` |
+| Region | `AWS_DEFAULT_REGION` (mis. `ap-southeast-1`) |
+| Public URL | `https://<ref>.supabase.co/storage/v1/object/public/amanah-bukti` → `AWS_URL` |
+
+### Opsi B — Cloudflare R2
 
 1. <https://dash.cloudflare.com/sign-up> — daftar (tanpa kartu kredit)
 2. Menu kiri → **R2** → **Create bucket**
    - Bucket name: `amanah-bukti`
    - Location: **Asia Pacific**
-3._bucket R2 → **Settings** → **Public access**:
-   - Pilih **Connect Domain** jika mau domain sendiri, ATAU
-   - Pilih **r2.dev** (gratis, URL langsung dapat, cukup untuk aplikasi ini)
-   - Aktifkan, lalu **copy** public URL-nya → ini jadi `AWS_URL`
+3. Bucket R2 → **Settings** → **Public Development URL** → **Enable**
+   - Ketik `allow` untuk konfirmasi, lalu **Allow**
+   - **Copy Public Bucket URL** → ini jadi `AWS_URL`
      - Bentuknya: `https://amanah-bukti.<xxxx>.r2.dev`
-4. Menu **R2** → **Manage R2 API Tokens** → **Create API Token**
+4. **R2 → Manage R2 API Tokens** → **Create Account API token**
    - Permissions: **Object Read & Write**
    - Specify bucket: `amanah-bukti` (JANGAN pilih "All buckets")
-   - Klik **Create**, lalu **copy** dua nilai:
-     - **Access Key ID** → `AWS_ACCESS_KEY_ID`
-     - **Secret Access Key** → `AWS_SECRET_ACCESS_KEY` ⚠️ **sekali saja, tidak bisa dilihat lagi**
-5. Buka tab **Account Details** di bawah R2 → copy **Account ID** dan **R2 API Endpoint** (format `https://<account-id>.r2.cloudflarestorage.com`) → jadi `AWS_ENDPOINT`
+   - **Copy Access Key ID** dan **Secret Access Key** (⚠️ sekali saja)
+5. **R2 Overview** bagian bawah → copy **S3 API Endpoint**
+   (`https://<account-id>.r2.cloudflarestorage.com`) → jadi `AWS_ENDPOINT`
+
+Untuk R2, dua nilai ini **harus diubah** di `render.yaml`:
+
+```yaml
+AWS_DEFAULT_REGION          = auto      # bukan sync:false
+AWS_USE_PATH_STYLE_ENDPOINT = "false"   # bukan "true"
+```
+
+### ⚠️ Dua nilai yang paling sering salah
+
+| Env var | Supabase | R2 | Salah → gejala |
+|---|---|---|---|
+| `AWS_URL` | `.../storage/v1/object/public/amanah-bukti` | `https://amanah-bukti.<xxxx>.r2.dev` | Link foto 404 |
+| `AWS_USE_PATH_STYLE_ENDPOINT` | `true` | `false` | `SignatureDoesNotMatch` |
+| `AWS_DEFAULT_REGION` | `ap-southeast-1` | `auto` | `SignatureDoesNotMatch` |
+
+`AWS_URL` **harus** URL publik bucket, **bukan** endpoint S3.
 
 ---
 
@@ -147,10 +204,11 @@ Copy hasilnya (pola `base64:xxxxxxxx...`). Ini nilai `APP_KEY`.
 | `DB_DATABASE` | Dari Neon |
 | `DB_USERNAME` | Dari Neon |
 | `DB_PASSWORD` | Dari Neon |
-| `AWS_ACCESS_KEY_ID` | Dari Cloudflare (langkah 3) |
-| `AWS_SECRET_ACCESS_KEY` | Dari Cloudflare (langkah 3) |
-| `AWS_ENDPOINT` | `https://<account-id>.r2.cloudflarestorage.com` |
-| `AWS_URL` | `https://amanah-bukti.<xxxx>.r2.dev` |
+| `AWS_ACCESS_KEY_ID` | Dari Supabase Storage (langkah 3) |
+| `AWS_SECRET_ACCESS_KEY` | Dari Supabase Storage (langkah 3) |
+| `AWS_ENDPOINT` | `https://<ref>.storage.supabase.co/storage/v1/s3` |
+| `AWS_URL` | `https://<ref>.supabase.co/storage/v1/object/public/amanah-bukti` |
+| `AWS_DEFAULT_REGION` | Dari halaman S3 Access Keys, mis. `ap-southeast-1` |
 | `BOOTSTRAP_ADMIN_EMAIL` | Email super admin yang kamu mau (mis. `super@sekolah.sch.id`) |
 | `BOOTSTRAP_ADMIN_PASSWORD` | **Minimal 12 karakter, ada huruf besar + kecil + angka** |
 
@@ -298,7 +356,7 @@ memakai 744 jam.
 | 503 "Frontend belum di-deploy" | `public/index.html` tidak masuk image. Cek apakah `docker/` ikut ter-`COPY` dan build context benar. |
 | 500 semua halaman | `APP_KEY` kosong/salah, atau `DB_HOST` salah. Cek **Logs**. |
 | Login langsung logout | `SESSION_SECURE_COOKIE=true` tapi diakses via http. Pastikan pakai `https://`. |
-| Foto bukti upload gagal | `fileinfo` tidak terpasang di image, atau R2 env salah. Cek **Logs**. |
+| Foto bukti upload gagal | `fileinfo` tidak terpasang di image, atau env storage salah. Cek **Logs**. Kalau errornya `SignatureDoesNotMatch`, hampir selalu `AWS_DEFAULT_REGION` atau `AWS_USE_PATH_STYLE_ENDPOINT` tidak cocok dengan provider |
 | Kamera scanner tidak jalan | Butuh HTTPS. Render sudah menyediakan TLS otomatis. |
 | "419 CSRF token mismatch" | `APP_URL` tidak sama dengan URL asli. Perbaiki, Save & Deploy. |
 | Halaman putih setelah deploy | Hard reload (Ctrl+Shift+R). `index.html` sengaja di-set no-cache, jadi seharusnya jarang terjadi. |
