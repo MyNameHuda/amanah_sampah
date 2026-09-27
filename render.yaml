@@ -1,0 +1,171 @@
+# =============================================================================
+# Render Blueprint — Amanah Sampah
+# =============================================================================
+# CARA PAKAI
+#   1. Push kode ini ke GitHub.
+#   2. Render Dashboard -> New -> Blueprint -> pilih repo ini.
+#   3. Render akan membaca service di bawah dan mengirimnya ke dashboard.
+#   4. Isi env var yang ditandai `sync: false` di dashboard Render.
+#
+# CATATAN PENTING: `DATABASE_URL` TIDAK diisi di sini. Render free Postgres
+# expired setelah 30 hari lalu dihapus, jadi bukan opsi yang bisa dipakai.
+# Pakai Neon (free, permanen, tanpa kartu kredit) — lihat deploy/README.md.
+# =============================================================================
+
+services:
+  - type: web
+    name: amanah-sampah
+    runtime: docker
+    dockerfilePath: ./prototype/Dockerfile
+    dockerContext: .
+    plan: free
+    region: singapore
+    healthCheckPath: /up
+
+    # Render free tidak menyediakan shell, jadi SEMUA setup harus jalan lewat
+    # build/start command atau entrypoint di dalam image.
+    buildCommand: ""
+    startCommand: ""
+
+    # Auto-deploy setiap push ke branch utama.
+    autoDeploy: true
+
+    envVars:
+      # --- Aplikasi ---
+      - key: APP_NAME
+        value: "Amanah Sampah"
+      - key: APP_ENV
+        value: production
+      # WAJIB: Generate di mesin lokal dengan
+      #   php artisan key:generate --show
+      # lalu tempel di sini. Kalau kosong, semua yang perlu enkripsi gagal.
+      - key: APP_KEY
+        sync: false
+      # WAJIB: isi setelah Render memberi URL, lalu Save & Deploy ulang.
+      # Contoh: https://amanah-sampah.onrender.com
+      - key: APP_URL
+        sync: false
+      - key: APP_DEBUG
+        value: "false"
+      - key: APP_LOCALE
+        value: id
+      - key: APP_FAKER_LOCALE
+        value: id_ID
+      - key: APP_MAINTENANCE_DRIVER
+        value: file
+
+      # --- Keamanan ---
+      # WAJIB true: Renderterminate TLS, dan Sanctum menolak cookie non-HTTPS.
+      - key: SESSION_SECURE_COOKIE
+        value: "true"
+      - key: SESSION_SAME_SITE
+        value: lax
+      - key: SESSION_DRIVER
+        value: database
+      - key: BCRYPT_ROUNDS
+        value: "12"
+
+      # --- Database (Neon) ---
+      # Salin "Pooled connection string" dari Neon console.
+      # WAJIB pakai yang ber-label "pooled" — untuk serverless, koneksi
+      # langsung bisa habis dan exhausting connection limit-nya.
+      - key: DB_CONNECTION
+        value: pgsql
+      - key: DATABASE_URL
+        sync: false
+      - key: DB_HOST
+        sync: false
+      - key: DB_PORT
+        value: "5432"
+      - key: DB_DATABASE
+        sync: false
+      - key: DB_USERNAME
+        sync: false
+      - key: DB_PASSWORD
+        sync: false
+
+      # --- Foto bukti barcode: Cloudflare R2 ---
+      # BUCKET_URL harus berupa public URL bucket:
+      #   https://<nama-pub-subdomain>.r2.dev
+      # (bukan endpoint API yang berakhiran r2.cloudflarestorage.com)
+      - key: AWS_ACCESS_KEY_ID
+        sync: false
+      - key: AWS_SECRET_ACCESS_KEY
+        sync: false
+      - key: AWS_ENDPOINT
+        sync: false
+      - key: AWS_BUCKET
+        value: amanah-bukti
+      - key: AWS_URL
+        sync: false
+      # R2 tidak punya region sungguhan; "auto" adalah nilai yang diwajibkan.
+      - key: AWS_DEFAULT_REGION
+        value: auto
+      - key: AWS_USE_PATH_STYLE_ENDPOINT
+        value: "false"
+
+      # --- Cache, queue, session ---
+      # Semua pakai driver database: tidak butuh Redis, dan tidak butuh
+      # service tambahan yang harus di-deploy.
+      - key: CACHE_STORE
+        value: database
+      - key: QUEUE_CONNECTION
+        value: database
+      - key: BROADCAST_CONNECTION
+        value: log
+      - key: FILESYSTEM_DISK
+        value: local
+
+      # --- Logging ---
+      # `daily` bukan `stack`/`single`: file log tunggal tumbuh tanpa batas
+      # dan akan memakan kuota 512 MB di hosting gratisan.
+      - key: LOG_CHANNEL
+        value: daily
+      - key: LOG_LEVEL
+        value: info
+
+      # --- Deployment hooks (dibaca docker/entrypoint.sh) ---
+      # Migrasi dijalankan dari entrypoint, bukan dari startCommand Render.
+      # Alasannya: `migrate --force` harus idempotent dan jalan setiap boot
+      # (Render me-restart container saat wake dari sleep), bukan cuma saat
+      # deploy baru.
+      - key: RUN_MIGRATIONS
+        value: "true"
+      # JANGAN set true di produksi. Seeder berisi password demo yang publik
+      # (super@amanah.id / super12345). Untuk setup produksi pakai
+      # BOOTSTRAP_ADMIN_* di bawah.
+      - key: RUN_SEED
+        value: "false"
+
+      # --- Bootstrap super admin pertama ---
+      # WAJIB diisi untuk deploy PERTAMA. Render free tidak punya shell, tidak
+      # punya SSH, dan tidak ada one-off job — jadi `amanah:create-super-admin`
+      # tidak pernah bisa dijalankan di sana. Tanpa tiga env var ini, aplikasi
+      # akan online tapi mustahil dimasuki.
+      #
+      # Syarat password: min 12 karakter, ada huruf besar, huruf kecil, dan angka.
+      # Contoh yang aman (GANTI dengan milikmu sendiri):
+      #   SkolahAmanah2026Bogor
+      #
+      # PENTING: setelah berhasil login pertama kali, HAPUS env var
+      # BOOTSTRAP_ADMIN_PASSWORD lalu Save & Deploy. Kalau dibiarkan, password
+      # tersebut tersimpan di dashboard Render dan bisa dibaca siapa saja yang
+      # punya akses ke project itu.
+      - key: BOOTSTRAP_ADMIN_NAME
+        value: Super Admin Sekolah
+      - key: BOOTSTRAP_ADMIN_EMAIL
+        sync: false
+      - key: BOOTSTRAP_ADMIN_PASSWORD
+        sync: false
+
+      # Render free tidak ada cron service, jadi scheduler dijalankan dari
+      # dalam container (loop tiap menit di entrypoint).
+      - key: ENABLE_INTERNAL_CRON
+        value: "true"
+
+      # --- Trust proxy ---
+      # Render menaruh service di belakang proxy, jadi `secure()` dan URL
+      # absolut Laravel harus percaya header dari Render. Tanpa ini, link
+      # https:// bisa jadi http://.
+      - key: TRUSTED_PROXIES
+        value: "*"

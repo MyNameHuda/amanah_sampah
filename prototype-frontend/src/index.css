@@ -1,0 +1,183 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Hapus default outline HANYA untuk mouse, tetap tampilkan untuk keyboard nav.
+   Pakai :focus-visible untuk modern UX — ring muncul hanya saat Tab, tidak saat click. */
+input:focus:not(:focus-visible),
+button:focus:not(:focus-visible),
+textarea:focus:not(:focus-visible),
+select:focus:not(:focus-visible) {
+  outline: none;
+}
+
+@layer components {
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2 rounded-md font-medium transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-brand-500;
+  }
+  .btn-primary {
+    @apply bg-brand-600 text-white hover:bg-brand-700 active:bg-brand-700 shadow-sm hover:shadow;
+  }
+  .btn-secondary {
+    @apply bg-white text-slate-700 border border-slate-300 hover:bg-slate-50 active:bg-slate-100;
+  }
+  .btn-danger {
+    @apply bg-red-600 text-white hover:bg-red-700 active:bg-red-700 shadow-sm;
+  }
+  /* Dipakai dialog bernada warning. Sebelumnya ConfirmDialog & PromptDialog
+     masing-masing menulis class amber mentah ("bg-amber-600 text-white ...")
+     sehingga tone yang sama bisa berbeda visual kalau salah satu diedit. */
+  .btn-warning {
+    @apply bg-amber-600 text-white hover:bg-amber-700 active:bg-amber-700 shadow-sm;
+  }
+  .btn-ghost {
+    @apply text-slate-700 hover:bg-slate-100;
+  }
+  .input {
+    @apply w-full px-3 py-2 border border-slate-300 rounded-md transition-shadow bg-white focus:border-brand-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-200;
+  }
+  .card {
+    @apply bg-white rounded-lg shadow-sm border border-slate-200 p-4 transition-shadow;
+  }
+  .card-hover {
+    @apply hover:shadow-md hover:border-slate-300;
+  }
+}
+
+/* --- Mobile ergonomics ----------------------------------------------------
+   Di layar sentuh, target tap minimum yang comfortable adalah 44px (iOS HIG)
+   / 48px (Material). `.btn` default hanya ~36px (py-2 + line-height 20px),
+   jadi di bawah 768px kita naikkan min-height-nya. Berlaku ke SEMUA tombol
+   di app — termasuk yang di dalam modal, tabel, dan form.
+
+   Desktop tidak tersentuh supaya kepadatan informasi tetap tinggi. */
+@media (max-width: 767px) {
+  .btn {
+    min-height: 44px;
+  }
+
+  /* Link teks yang berfungsi sebagai action (mis. "Lupa password?")
+     diberi jarak tap yang layak tanpa mengubah tampilan. */
+  .btn-ghost {
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
+  }
+}
+
+/* Scroll container horizontal dengan scroll-snap per item — dipakai
+   mobile tab strip supaya pill yang di-tap tidak setengah terpotong. */
+@layer utilities {
+  .snap-x-mandatory {
+    scroll-snap-type: x mandatory;
+  }
+  .snap-start-always {
+    scroll-snap-align: start;
+  }
+}
+
+@layer utilities {
+  /* Scrollbar tersembunyi — untuk horizontal tab strip & edge-fade containers.
+     Tetap bisa di-scroll dengan trackpad/gesture, cuma tidak distracting. */
+  .scrollbar-hide {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background: rgb(203 213 225);
+    border-radius: 4px;
+  }
+  .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+    background: rgb(148 163 184);
+  }
+}
+
+/* Accessibility: respect reduced-motion preference.
+   User dengan vestibular disorders atau motion sensitivity tidak boleh
+   dipaksa melihat animasi besar seperti blob blur atau slide-up. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  /* Sembunyikan decorative blobs saat reduced motion */
+  .animate-pulse-soft,
+  .animate-pulse,
+  .animate-spin {
+    animation: none !important;
+  }
+}
+
+/* Hilangkan tombol clear bawaan WebKit/Blink pada input[type="search"] —
+   sudah kita ganti dengan tombol clear custom yang punya aria-label. Tanpa ini
+   di Safari & Chrome Android muncul dua tombol "x" bertumpuk. */
+input[type='search']::-webkit-search-cancel-button,
+input[type='search']::-webkit-search-decoration {
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+/* Custom focus ring for keyboard users - subtle but visible */
+:focus-visible {
+  outline: 2px solid transparent;
+}
+
+/* Login decorative blob drift — subtle horizontal/vertical movement
+   untuk "alive" feel. Paired dengan motion-reduce:hidden di JSX. */
+@keyframes drift {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33%      { transform: translate(20px, -15px) scale(1.05); }
+  66%      { transform: translate(-10px, 20px) scale(0.95); }
+}
+
+/* Login entrance choreography — staggered reveal.
+   All use transform + opacity (GPU-accelerated, no layout thrash).
+   Total animation duration ~1.2s, then UI is fully painted and idle. */
+@keyframes drop-in {
+  0%   { opacity: 0; transform: translateY(-12px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slide-from-right {
+  0%   { opacity: 0; transform: translateX(16px); }
+  100% { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes zoom-fade-in {
+  0%   { opacity: 0; transform: scale(0.97); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+@keyframes reveal-up {
+  0%   { opacity: 0; transform: translateY(20px); }
+  60%  { opacity: 1; }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes glow-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgb(187 247 208 / 0); }
+  50%      { box-shadow: 0 0 0 8px rgb(187 247 208 / 0.4); }
+}

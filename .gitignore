@@ -1,0 +1,63 @@
+# =============================================================================
+# File yang TIDAK boleh ikut ter-deploy / ter-commit
+# =============================================================================
+
+# --- Rahasia (PENTING) --------------------------------------------------------
+.env
+.env.production
+.env.*.local
+*.pem
+*.key
+
+# --- Hasil build frontend -----------------------------------------------------
+# `public/` berisi hasil `npm run deploy` — artifact, bukan source.
+# Tidak di-commit supaya repo tidak membengkak dan asset lama tidak ikut.
+/prototype/public/*
+!/prototype/public/.gitkeep
+!/prototype/public/robots.txt
+
+# --- Dependency ---------------------------------------------------------------
+/prototype/vendor/
+/prototype/node_modules/
+node_modules/
+/prototype-frontend/dist/
+
+# --- Runtime (JANGAN commit isinya, tapi JANGAN juga dihapus dari disk) -------
+# `storage/` dan `database/*.sqlite` berisi DATA PRODUKSI: foto bukti barcode,
+# log, dan seluruh isi database. Menimpa keduanya = kehilangan data.
+/prototype/storage/*.key
+/prototype/storage/app/public/barcode-evidence/*
+!/prototype/storage/app/public/barcode-evidence/.gitkeep
+/prototype/storage/framework/cache/*
+/prototype/storage/framework/sessions/*
+/prototype/storage/framework/views/*
+/prototype/storage/logs/*
+/prototype/database/*.sqlite
+/prototype/database/*.sqlite-journal
+/prototype/database/*.sqlite-wal
+/prototype/database/*.sqlite-shm
+/prototype/backups/
+
+# --- Dokumentasi (tidak di-deploy, tidak di-share publik) --------------------
+# Repo ini berisi kode + config deploy. Dokumen produk (PRD, ERD, manual,
+# laporan) tetap disimpan di disk lokal, tapi tidak ikut ter-push.
+#
+# Tidak ada efek ke deploy: .dockerignore juga sudah men-exclude `*.md` dan
+# `docs/` dari build context.
+*.docx
+docs/
+
+# Hanya .md di ROOT. Tanda `/` di depan mengunci pattern ke root, jadi
+# `prototype/README.md` dan `prototype/deploy/RENDER.md` (runbook Render)
+# TETAP ikut ter-push.
+/*.md
+
+# Backup lokal saat rewrite history — jangan pernah ikut ter-push.
+_backup/
+
+# --- OS / editor --------------------------------------------------------------
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp

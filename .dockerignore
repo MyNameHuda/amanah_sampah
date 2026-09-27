@@ -1,0 +1,66 @@
+# =============================================================================
+# Docker ignore
+# =============================================================================
+# Mengurangi ukuran build context (Render mengupload semua isi ini) dan
+# mencegah file lokal masuk ke image. Secret yang bocor ke image production
+# adalah salah satu kebocoran yang paling sulit dideteksi belakangan, karena
+# layer lama di registry masih menyimpannya walau file-nya sudah dihapus.
+# =============================================================================
+
+# --- Secret (PENTING) ---------------------------------------------------------
+.env
+.env.*
+!.env.example
+!.env.production.example
+*.pem
+*.key
+*.p12
+
+# --- Data runtime: JANGAN pernah masuk image ---------------------------------
+# Kalau ini ikut ter-COPY, data produksi (dan database dev) bisa bocor lewat
+# image layer, dan image lama masih menyimpannya walau sudah dihapus.
+prototype/database/*.sqlite
+prototype/database/*.sqlite-journal
+prototype/database/*.sqlite-wal
+prototype/database/*.sqlite-shm
+prototype/database/backups/
+prototype/storage/logs/
+prototype/storage/framework/cache/
+prototype/storage/framework/sessions/
+prototype/storage/framework/views/
+prototype/storage/app/public/barcode-evidence/
+
+# --- Dependency: di-install ulang di dalam image ------------------------------
+prototype/vendor/
+prototype/node_modules/
+prototype-frontend/node_modules/
+prototype-frontend/dist/
+
+# --- Build artifact frontend: dibangun ulang di dalam image ------------------
+# `dist/` sengaja TIDAK di-exclude dari `COPY --from=frontend /build/dist/`,
+# karena itu diambil dari stage build, bukan dari context.
+prototype/public/
+
+# --- VCS, CI, editor ----------------------------------------------------------
+.git
+.gitignore
+.github
+.idea
+.vscode
+*.swp
+.DS_Store
+Thumbs.db
+
+# --- Dokumentasi (tidak dibutuh runtime) --------------------------------------
+*.md
+!prototype/README.md
+docs/
+prototype/deploy/
+prototype/amanah_probe.php
+
+# --- Log & tmp ----------------------------------------------------------------
+*.log
+npm-debug.log*
+yarn-error.log*
+tmp/
+.cache/
