@@ -127,6 +127,17 @@ export async function requireAuth(ctx: Ctx): Promise<TokenPayload> {
   }
 }
 
+/** Bungkus body dengan status HTTP tertentu (mis. 201 Created). */
+export class JsonResult {
+  constructor(
+    readonly status: number,
+    readonly body: unknown,
+  ) {}
+}
+
+export const Created = (body: unknown) => new JsonResult(201, body);
+export const NoContent = () => new JsonResult(204, null);
+
 /** Pembungkus handler:ubah exception apa pun jadi response JSON. */
 export function handler<Args extends unknown[]>(
   fn: (ctx: Ctx, ...args: Args) => Promise<unknown>,
@@ -136,6 +147,10 @@ export function handler<Args extends unknown[]>(
     try {
       const body = await fn(ctx, ...args);
       if (res.writableEnded) return;
+      if (body instanceof JsonResult) {
+        if (body.status === 204) return res.status(204).end();
+        return res.status(body.status).json(body.body);
+      }
       res.status(200).json(body ?? { message: 'OK.' });
     } catch (e) {
       if (res.writableEnded) return;

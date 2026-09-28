@@ -442,12 +442,12 @@ export type PersonalAccessToken = typeof personalAccessTokens.$inferSelect;
  * Kontrak tipe untuk hal yang sering dipakai
  * ------------------------------------------------------------------ */
 export const POINT_SOURCE_TYPES = [
-  'verification', // setor sampah terverifikasi
-  'redemption', // tukar reward
-  'penalty', // denda shortfall
-  'purchase', // pembelian sampah oleh sekolah (bukan dari sampahلفزيون)
-  'return_match', // retur / pembalikan
+  'initial', // baris pembuka saat siswa dibuat
+  'purchase', // pembelian sampah (-1 poin per unit, flat)
+  'return_match', // retur / pembalikan hasil verifikasi
+  'redeem', // penukaran reward
   'reset', // reset denda oleh admin
-  'adjustment', // penyesuaian manual super admin
+  'admin_adjustment', // penyesuaian manual oleh super admin
+
 ] as const;
 export type PointSourceType = (typeof POINT_SOURCE_TYPES)[number];

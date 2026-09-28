@@ -1,15 +1,20 @@
 /**
- * Koneksi database ke Neon via driver HTTP (bukan TCP).
+ * Koneksi database ke Neon.
  *
- * Kenapa wajib HTTP: Vercel Functions tidak punya koneksi TCP persisten ke
- * luar. `@neondatabase/serverless` memakai HTTP sehingga aman di serverless.
- * Membuka socket TCP biasa akan timeout atau gagal.
+ * DRIVER: WebSocket (`neon-serverless`), BUKAN HTTP.
+ *
+ * Kenapa bukan HTTP: `drizzle-orm/neon-http` TIDAK mendukung transaksi
+ * interaktif sama sekali — `db.transaction()` melempar
+ * "No transactions support in neon-http driver". Padahal endpoint
+ * /api/pembelian dan /api/reset WAJIB atomic: kalau insert transaksi
+ * berhasil tapi update saldo gagal, poin siswa jadi tidak sinkron dengan
+ * buku besar. Driver WebSocket mendukung `db.transaction()` sungguhan.
  */
-import { neon, type NeonQueryFunction } from '@neondatabase/serverless';
-import { drizzle, type NeonHttpDatabase } from 'drizzle-orm/neon-http';
+import { Pool, neon, type NeonQueryFunction } from '@neondatabase/serverless';
+import { drizzle, type NeonDatabase } from 'drizzle-orm/neon-serverless';
 import * as schema from './schema';
 
-export type Database = NeonHttpDatabase<typeof schema>;
+export type Database = NeonDatabase<typeof schema>;
 export type Sql = NeonQueryFunction<boolean, boolean>;
 
 function requireUrl(): string {
@@ -22,23 +27,36 @@ function requireUrl(): string {
   return url;
 }
 
-let cachedSql: Sql | undefined;
+let cachedPool: Pool | undefined;
 let cachedDb: Database | undefined;
+let cachedSql: Sql | undefined;
 
-/** Klien Neon mentah — untuk query SQL berparameter. */
+/**
+ * Klien Neon HTTP — hanya untuk query yang tidak butuh transaksi.
+ * Dipakai /api/status supaya ping tidak memakai koneksi WebSocket.
+ */
 export function getSql(): Sql {
   if (!cachedSql) cachedSql = neon(requireUrl());
   return cachedSql;
 }
 
 /**
- * Instance Drizzle. Disimpan di module scope supaya warm start memakai
- * koneksi yang sama — ini menghemat active CPU yang hanya 4 jam/bulan
- * di Vercel Hobby.
+ * Instance Drizzle + Pool WebSocket. Disimpan di module scope supaya warm
+ * start memakai koneksi yang sama — ini menghemat active CPU yang hanya
+ * 4 jam/bulan di Vercel Hobby.
  */
 export function getDb(): Database {
-  if (!cachedDb) cachedDb = drizzle(getSql(), { schema });
+  if (!cachedDb) {
+    cachedPool = new Pool({ connectionString: requireUrl() });
+    cachedDb = drizzle(cachedPool, { schema });
+  }
   return cachedDb;
+}
+
+export function getPool(): Pool {
+  getDb();
+  if (!cachedPool) throw new Error('Pool belum diinisialisasi.');
+  return cachedPool;
 }
 
 /** Cek koneksi hidup/mati. Dipakai /api/status. */
