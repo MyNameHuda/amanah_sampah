@@ -1,4 +1,5 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
+import axios from 'axios';
 import api, { type Produk } from '../api/client';
 import Layout from '../components/Layout';
 import { useToast } from '../components/Toast';
@@ -237,11 +238,31 @@ export default function PetugasDashboard() {
    * kamera + qty hasil konfirmasi). Ketiganya sengaja memakai satu function
    * supaya update state & penghitungan open debt tidak bisa berbeda antar jalur.
    *
-   * `fotoBukti` dikirim sebagai multipart. Backend menyimpannya lewat
-   * PhotoUploadService (validasi MIME asli + deteksi polyglot) dan
-   * mengembalikan `foto_bukti_url` yang sudah jadi — frontend tidak menyusun
-   * URL sendiri supaya tidak ikut rusak saat pindah dari disk lokal ke R2.
+   * `fotoBukti` TIDAK lagi dikirim sebagai multipart. Batas payload Vercel
+   * hanya 4,5 MB, sedangkan foto di lapangan bisa 5 MB — kalau dipaksakan
+   * lewat request ke Vercel, yang gagal adalah request-nya dan petugas
+   * kehilangan catatannya. Jadi fotonya di-upload langsung ke Supabase
+   * memakai presigned URL, lalu yang dikirim ke backend hanya path-nya.
+   * `foto_bukti_url` tetap disusun di server supaya tidak ikut rusak saat
+   * pindah hosting.
    */
+  async function uploadFotoBukti(file: File): Promise<string> {
+    const presign = await api.post('/verifikasi/foto-bukti/presign', {
+      content_type: file.type,
+      size: file.size,
+    });
+
+    // PENTING: pakai axios biasa, BUKAN instance `api`. Instance itu
+    // menyuntik header Authorization, dan S3 menolak presigned URL kalau
+    // ada dua mekanisme autentikasi ("Only one auth mechanism allowed").
+    await axios.put(presign.data.upload_url, file, {
+      headers: { 'Content-Type': file.type },
+      transformRequest: [(d) => d],
+    });
+
+    return presign.data.path as string;
+  }
+
   async function addItem(
     barcode: string,
     qty: number,
@@ -252,36 +273,24 @@ export default function PetugasDashboard() {
       return;
     }
     try {
-      // Ada foto bukti? Kirim sebagai multipart. Kalau tidak, JSON biasa —
-      // mengirim FormData tanpa file membuat Laravel complain "syntax error"
-      // karena mengurai field biasa sebagai PHP multipart.
-      const hasFoto = !!opts?.fotoBukti;
-      const payload: FormData | Record<string, unknown> = { barcode, qty_in: qty };
-
-      if (opts?.catatan) {
-        (payload as Record<string, unknown>).catatan = opts.catatan;
+      let fotoPath: string | undefined;
+      if (opts?.fotoBukti) {
+        fotoPath = await uploadFotoBukti(opts.fotoBukti);
       }
 
-      if (hasFoto) {
-        const fd = new FormData();
-        fd.append('barcode', barcode);
-        fd.append('qty_in', String(qty));
-        if (opts?.catatan) fd.append('catatan', opts.catatan);
-        fd.append('foto_bukti', opts!.fotoBukti!, opts!.fotoBukti!.name);
-
-        const r = await api.post(`/verifikasi/sesi/${sesi.id}/items`, fd, {
-          headers: { 'Content-Type': 'multipart/form-data' },
-        });
-        return applyAddedItem(r.data.item, opts);
-      }
+      const payload: Record<string, unknown> = { barcode, qty_in: qty };
+      if (opts?.catatan) payload.catatan = opts.catatan;
+      if (fotoPath) payload.foto_bukti_path = fotoPath;
 
       const r = await api.post(`/verifikasi/sesi/${sesi.id}/items`, payload);
       return applyAddedItem(r.data.item, opts);
     } catch (err: any) {
       const msg =
-        err.response?.data?.note ||
         err.response?.data?.message ||
-        err.response?.data?.errors?.foto_bukti?.[0] ||
+        err.response?.data?.qty_in?.[0] ||
+        err.response?.data?.barcode?.[0] ||
+        err.response?.data?.catatan?.[0] ||
+        err.response?.data?.size?.[0] ||
         'Gagal add item.';
       toast.error(msg);
     }
