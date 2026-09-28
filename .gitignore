@@ -5,26 +5,39 @@
 # --- Rahasia (PENTING) --------------------------------------------------------
 .env
 .env.production
+.env.local
 .env.*.local
 *.pem
 *.key
 
-# --- Hasil build frontend -----------------------------------------------------
-# `public/` berisi hasil `npm run deploy` — artifact, bukan source.
-# Tidak di-commit supaya repo tidak membengkak dan asset lama tidak ikut.
+# --- Dependency ---------------------------------------------------------------
+node_modules/
+/prototype/vendor/
+
+# --- Hasil build --------------------------------------------------------------
+dist/
 /prototype/public/*
-!/prototype/public/.gitkeep
 !/prototype/public/robots.txt
 
-# --- Dependency ---------------------------------------------------------------
-/prototype/vendor/
-/prototype/node_modules/
-node_modules/
-/prototype-frontend/dist/
+# --- Hasil generate -----------------------------------------------------------
+/drizzle/meta/          # metadata snapshot drizzle-kit
 
-# --- Runtime (JANGAN commit isinya, tapi JANGAN juga dihapus dari disk) -------
-# `storage/` dan `database/*.sqlite` berisi DATA PRODUKSI: foto bukti barcode,
-# log, dan seluruh isi database. Menimpa keduanya = kehilangan data.
+# --- Dokumentasi (tidak di-deploy, tidak di-share publik) --------------------
+# Repo ini berisi kode + config deploy. Dokumen produk (PRD, ERD, manual,
+# laporan) tetap disimpan di disk lokal, tapi tidak ikut ter-push.
+#
+# Tidak ada efek ke deploy: Vercel hanya mengambil `dist/` + `api/`.
+*.docx
+docs/
+
+# Hanya .md di ROOT. Tanda `/` mengunci pattern ke root, jadi README project
+# tetap ter-push tapi PRD/ERD/Decision-Log tidak.
+/*.md
+
+# Backup lokal saat rewrite history — jangan pernah ikut ter-push.
+_backup/
+
+# --- Runtime Laravel (legacy, hanya dipakai selama migrasi) ------------------
 /prototype/storage/*.key
 /prototype/storage/app/public/barcode-evidence/*
 !/prototype/storage/app/public/barcode-evidence/.gitkeep
@@ -37,23 +50,7 @@ node_modules/
 /prototype/database/*.sqlite-wal
 /prototype/database/*.sqlite-shm
 /prototype/backups/
-
-# --- Dokumentasi (tidak di-deploy, tidak di-share publik) --------------------
-# Repo ini berisi kode + config deploy. Dokumen produk (PRD, ERD, manual,
-# laporan) tetap disimpan di disk lokal, tapi tidak ikut ter-push.
-#
-# Tidak ada efek ke deploy: .dockerignore juga sudah men-exclude `*.md` dan
-# `docs/` dari build context.
-*.docx
-docs/
-
-# Hanya .md di ROOT. Tanda `/` di depan mengunci pattern ke root, jadi
-# `prototype/README.md` dan `prototype/deploy/RENDER.md` (runbook Render)
-# TETAP ikut ter-push.
-/*.md
-
-# Backup lokal saat rewrite history — jangan pernah ikut ter-push.
-_backup/
+/prototype/.phpunit.result.cache
 
 # --- OS / editor --------------------------------------------------------------
 .DS_Store
