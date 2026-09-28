@@ -28,6 +28,20 @@ export function requireCapability(actual: Role, cap: Parameters<typeof hasCapabi
   }
 }
 
+/**
+ * Hanya Super Admin (tier 1 DAN tier 3).
+ *
+ * Beda dari `requireAdminOrSuper` yang juga menerima `admin_kesantrian`.
+ * Dipakai untuk panel super-admin: config sistem, mode maintenance, dan
+ * manajemen user. T3 boleh masuk, tapi operasi destruktifnya minta
+ * re-verifikasi password (lihat auth/t3.ts).
+ */
+export function requireSuperAdmin(actual: Role): void {
+  if (!isSuperAdmin(actual)) {
+    throw new HttpError(422, 'Akses ditolak.', { field: 'auth' });
+  }
+}
+
 /** Format ISO8601 atau null — kolom timestamp nullable. */
 export function iso(v: Date | string | null | undefined): string | null {
   if (!v) return null;

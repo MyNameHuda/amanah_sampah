@@ -20,23 +20,32 @@ export class HttpError extends Error {
   readonly field: string | null;
   /** Marker `suspended` dibaca client.ts untuk redirect ke /login?suspended=1 */
   readonly suspended: boolean;
+  /** Marker `password_reverify` dibaca frontend untuk buka dialog password */
+  readonly actionRequired: string | null;
 
   constructor(
     status: number,
     message: string,
-    opts: { field?: string; suspended?: boolean } = {},
+    opts: { field?: string; suspended?: boolean; actionRequired?: string } = {},
   ) {
     super(message);
     this.status = status;
     this.field = opts.field ?? null;
     this.suspended = opts.suspended ?? false;
+    this.actionRequired = opts.actionRequired ?? null;
   }
 
   /** Bentuk error Laravel ValidationException: { login: ["Kredensial salah."] } */
   toBody(): Record<string, unknown> {
     const body: Record<string, unknown> = { message: this.message };
-    if (this.field) body[this.field] = [this.message];
+    // Dua bentuk sekaligus: sebagai key (bentuk validasi Laravel) DAN sebagai
+    // nilai skalar di root (bentuk yang dikembalikan middleware aslinya).
+    if (this.field) {
+      body[this.field] = [this.message];
+      body.field = this.field;
+    }
     if (this.suspended) body.suspended = true;
+    if (this.actionRequired) body.action_required = this.actionRequired;
     return body;
   }
 }
