@@ -70,7 +70,7 @@ export default function PetugasDashboard() {
   const [nisInput, setNisInput] = useState('');
   const [sesi, setSesi] = useState<SesiVerifikasi | null>(null);
   const [openDebts, setOpenDebts] = useState<OpenDebt[]>([]);
-  const [santriInfo, setSantriInfo] = useState<{ nama: string; current_poin: number; is_blocked: boolean } | null>(null);
+  const [siswaInfo, setSiswaInfo] = useState<{ nama: string; current_poin: number; is_blocked: boolean } | null>(null);
   const [produkList, setProdukList] = useState<Produk[]>([]);
   const [itemBarcode, setItemBarcode] = useState('');
   const [itemQty, setItemQty] = useState(1);
@@ -138,7 +138,7 @@ export default function PetugasDashboard() {
       const r = await api.get(`/verifikasi/sesi/${id}`);
       setSesi({ ...r.data.sesi, items: r.data.sesi.items || [] });
       setOpenDebts(r.data.open_debts || []);
-      setSantriInfo(r.data.santri);
+      setSiswaInfo(r.data.siswa);
       setNisInput(r.data.sesi.nis);
       toast.success('Sesi dilanjutkan. Lanjutkan verifikasi dari titik kamu berhenti.');
       loadSesiTerbuka();
@@ -211,8 +211,8 @@ export default function PetugasDashboard() {
       const r = await api.post('/verifikasi/sesi', { nis: nisInput });
       setSesi({ ...r.data.sesi, items: [] });
       setOpenDebts(r.data.open_debts);
-      setSantriInfo(r.data.santri);
-      toast.success(`Sesi dibuka untuk ${r.data.santri.nama}`);
+      setSiswaInfo(r.data.siswa);
+      toast.success(`Sesi dibuka untuk ${r.data.siswa.nama}`);
     } catch (err: any) {
       const msg = err.response?.data?.message || 'Gagal buka sesi.';
       // Deteksi penolakan karena akun siswa suspended (422 dari
@@ -408,9 +408,9 @@ export default function PetugasDashboard() {
     try {
       const r = await api.post(`/verifikasi/sesi/${sesi.id}/commit`);
       setSesi({ ...sesi, waktu_selesai: r.data.sesi.waktu_selesai, total_poin_change: r.data.saldo_change });
-      setSantriInfo((prev) => prev ? { ...prev, current_poin: r.data.santri.current_poin, is_blocked: r.data.santri.is_blocked } : prev);
+      setSiswaInfo((prev) => prev ? { ...prev, current_poin: r.data.siswa.current_poin, is_blocked: r.data.siswa.is_blocked } : prev);
       toast.success(
-        ` Commit OK! Saldo change: ${r.data.saldo_change > 0 ? '+' : ''}${r.data.saldo_change}. Poin: ${r.data.santri.current_poin}`
+        ` Commit OK! Saldo change: ${r.data.saldo_change > 0 ? '+' : ''}${r.data.saldo_change}. Poin: ${r.data.siswa.current_poin}`
       );
     } catch (err: any) {
       toast.error(err.response?.data?.message || 'Gagal commit.');
@@ -420,7 +420,7 @@ export default function PetugasDashboard() {
   }
 
   function resetSession() {
-    setSesi(null); setOpenDebts([]); setSantriInfo(null); setNisInput(''); setItemBarcode(''); setItemQty(1);
+    setSesi(null); setOpenDebts([]); setSiswaInfo(null); setNisInput(''); setItemBarcode(''); setItemQty(1);
   }
 
   const totalItemsPoin = sesi?.items.reduce((sum, i) => sum + i.poin_delta, 0) ?? 0;
@@ -561,16 +561,16 @@ export default function PetugasDashboard() {
             </p>
           )}
           {/* Siswa info bar */}
-          {santriInfo && (
-            <div className={`mb-4 p-4 rounded-lg border-l-4 ${santriInfo.is_blocked ? 'border-red-500 bg-red-50' : 'border-brand-500 bg-brand-50'} animate-slide-up`}>
+          {siswaInfo && (
+            <div className={`mb-4 p-4 rounded-lg border-l-4 ${siswaInfo.is_blocked ? 'border-red-500 bg-red-50' : 'border-brand-500 bg-brand-50'} animate-slide-up`}>
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <p className="text-xs text-slate-500 uppercase tracking-wide font-medium">Siswa</p>
-                  <p className="font-semibold text-slate-800 truncate">{santriInfo.nama} | {sesi.nis}</p>
+                  <p className="font-semibold text-slate-800 truncate">{siswaInfo.nama} | {sesi.nis}</p>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
-                  {santriInfo.is_blocked && <Badge tone="red" icon={<AlertTriangle className="w-3 h-3" />}>Blocked</Badge>}
-                  <PoinBadge value={santriInfo.current_poin} />
+                  {siswaInfo.is_blocked && <Badge tone="red" icon={<AlertTriangle className="w-3 h-3" />}>Blocked</Badge>}
+                  <PoinBadge value={siswaInfo.current_poin} />
                 </div>
               </div>
             </div>

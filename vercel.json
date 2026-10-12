@@ -6,24 +6,16 @@
   "outputDirectory": "dist",
   "regions": ["sin1"],
   "functions": {
-    "api/**/*.ts": {
+    "api/index.js": {
       "maxDuration": 30
     }
   },
   "crons": [
-    {
-      "path": "/api/cron/purge-tokens",
-      "schedule": "17 3 * * *"
-    },
-    {
-      "path": "/api/cron/archive-audit",
-      "schedule": "43 4 * * *"
-    }
+    { "path": "/api/cron/purge-tokens", "schedule": "17 3 * * *" },
+    { "path": "/api/cron/archive-audit", "schedule": "43 4 * * *" }
   ],
   "rewrites": [
-    {
-      "source": "/((?!api/).*)",
-      "destination": "/index.html"
-    }
+    { "source": "/api/:path*", "destination": "/api" },
+    { "source": "/:path*", "destination": "/index.html" }
   ]
 }

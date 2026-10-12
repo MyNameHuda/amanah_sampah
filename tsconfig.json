@@ -26,5 +26,5 @@
       "@server/*": ["src/server/*"]
     }
   },
-  "include": ["src/client", "src/server", "api", "vite.config.ts"]
+  "include": ["src/client", "src/server", "src/shared", "api", "vite.config.ts"]
 }

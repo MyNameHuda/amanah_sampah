@@ -12,11 +12,11 @@
  * menampilkan dialog password — bukan sekadar menampilkan pesan error.
  */
 import { eq } from 'drizzle-orm';
-import { getDb, schema } from '../db/index';
-import { recordAudit } from '../audit';
-import { verifyPassword } from './password';
-import { isSuperAdmin, isSuperAdminTier1, isSuperAdminTier3, type Role } from './roles';
-import { HttpError, type Ctx } from '../http';
+import { getDb, schema } from '../db/index.ts';
+import { recordAudit } from '../audit.ts';
+import { verifyPassword } from './password.ts';
+import { isSuperAdmin, isSuperAdminTier1, isSuperAdminTier3, type Role } from './roles.ts';
+import { HttpError, type Ctx } from '../http.ts';
 
 export interface Actor {
   sub: number;

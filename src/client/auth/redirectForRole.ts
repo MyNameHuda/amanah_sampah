@@ -3,7 +3,7 @@ import type { Role } from '../api/client';
 export function redirectForRole(role: Role): string {
   switch (role) {
     case 'santri':
-      return '/santri';
+      return '/siswa';
     case 'staff_kantin':
       return '/staff';
     case 'petugas_kesantrian':

@@ -10,8 +10,8 @@ import type { Role } from './api/client';
 import type { ReactNode } from 'react';
 
 // Lazy-load dashboards — each role only downloads its own chunk.
-// Santri tidak perlu download AdminDashboard (34KB) atau SuperAdminDashboard (21KB).
-const SantriDashboard = lazy(() => import('./pages/SantriDashboard'));
+// Siswa tidak perlu download AdminDashboard (34KB) atau SuperAdminDashboard (21KB).
+const SiswaDashboard = lazy(() => import('./pages/SiswaDashboard'));
 const StaffDashboard = lazy(() => import('./pages/StaffDashboard'));
 const PetugasDashboard = lazy(() => import('./pages/PetugasDashboard'));
 const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
@@ -44,10 +44,21 @@ function AppRoutes() {
     <Suspense fallback={<PageFallback />}>
       <Routes>
         <Route path="/" element={<HomeRedirect />} />
-        <Route path="/santri" element={<ProtectedRoute allowedRoles={['santri']}><SantriDashboard /></ProtectedRoute>} />
-        <Route path="/staff" element={<ProtectedRoute allowedRoles={['staff_kantin', 'super_admin', 'super_admin_tier3']}><StaffDashboard /></ProtectedRoute>} />
-        <Route path="/petugas" element={<ProtectedRoute allowedRoles={['petugas_kesantrian', 'super_admin', 'super_admin_tier3']}><PetugasDashboard /></ProtectedRoute>} />
-        <Route path="/admin" element={<ProtectedRoute allowedRoles={['admin_kesantrian', 'super_admin', 'super_admin_tier3']}><AdminDashboard /></ProtectedRoute>} />
+        <Route path="/siswa" element={<ProtectedRoute allowedRoles={['santri']}><SiswaDashboard /></ProtectedRoute>} />
+        {/* Super admin SENGAJA tidak ada di allowedRoles dashboard operasional.
+            Dulu `super_admin` + `super_admin_tier3` tercantum di sini, jadi
+            super admin bisa masuk dashboard staff/petugas/admin cukup dengan
+            mengetik URL-nya. Itu ambigu secara akuntabilitas: tindakan yang
+            dicatat atas nama "Super Admin Sekolah" jadi tercampur dengan
+            tindakan operasional harian (POS, verifikasi, reset poin).
+
+            Super admin bekerja lewat /super + /super/users, di mana operasi
+            destruktif mewajibkan re-verify password (T3). Backend tetap
+            menerima role super_admin pada endpoint operasional — yang
+            dikunci di sini adalah akses UI-nya, sesuai keputusan dass. */}
+        <Route path="/staff" element={<ProtectedRoute allowedRoles={['staff_kantin']}><StaffDashboard /></ProtectedRoute>} />
+        <Route path="/petugas" element={<ProtectedRoute allowedRoles={['petugas_kesantrian']}><PetugasDashboard /></ProtectedRoute>} />
+        <Route path="/admin" element={<ProtectedRoute allowedRoles={['admin_kesantrian']}><AdminDashboard /></ProtectedRoute>} />
         <Route path="/super" element={<ProtectedRoute allowedRoles={['super_admin', 'super_admin_tier3']}><SuperAdminDashboard /></ProtectedRoute>} />
         <Route path="/super/users" element={<ProtectedRoute allowedRoles={['super_admin', 'super_admin_tier3']}><SuperAdminUsers /></ProtectedRoute>} />
         {/* Note: /change-password-required tidak ada di sini — di-handle oleh AppInner

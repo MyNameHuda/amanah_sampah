@@ -10,9 +10,28 @@
  * berhasil tapi update saldo gagal, poin siswa jadi tidak sinkron dengan
  * buku besar. Driver WebSocket mendukung `db.transaction()` sungguhan.
  */
-import { Pool, neon, type NeonQueryFunction } from '@neondatabase/serverless';
+import { Pool, neon, neonConfig, type NeonQueryFunction } from '@neondatabase/serverless';
 import { drizzle, type NeonDatabase } from 'drizzle-orm/neon-serverless';
-import * as schema from './schema';
+import * as schema from './schema.ts';
+import WebSocketImpl from 'ws';
+
+/*
+ * [PENTING] Driver WebSocket WAJIB dikasih implementasi WebSocket eksplisit.
+ *
+ * `@neondatabase/serverless` mengambil WebSocket dari global runtime. Di
+ * laptop (Node 24) global itu ada, jadi driver HTTP (`neon()`) maupun
+ * WebSocket (`Pool`) sama-sama jalan. Di Vercel Functions — yang dibundle
+ * esbuild sebagai ESM dengan `packages: 'external'` — global WebSocket tidak
+ * terbaca oleh driver, dan setiap query WebSocket gagal dengan:
+ *
+ *     [500] Invalid JSON
+ *
+ * Gejalanya sangat menyesatkan karena driver HTTP tetap sehat: `/api/status`
+ * melapor `database.ok: true` sementara semua endpoint yang pakai `Pool`
+ * (login, pembelian, verifikasi, reset) 500. Jadi `ws` di-pin di sini,
+ * bukan sekadar hoped ada.
+ */
+neonConfig.webSocketConstructor = WebSocketImpl as unknown as typeof WebSocket;
 
 export type Database = NeonDatabase<typeof schema>;
 export type Sql = NeonQueryFunction<boolean, boolean>;

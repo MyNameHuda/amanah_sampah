@@ -148,7 +148,7 @@ export function RewardManagerModal({ open, reward, onClose, onSaved }: RewardMan
         title={isEditing ? 'Edit Reward' : 'Tambah Reward Baru'}
         description={isEditing
           ? 'Perbarui nama, biaya poin, atau stok reward.'
-          : 'Tambahkan reward baru yang bisa ditukar oleh Santri.'}
+          : 'Tambahkan reward baru yang bisa ditukar oleh Siswa.'}
         size="md"
         footer={footerActions}
       >
@@ -299,11 +299,11 @@ export function RewardManagerModal({ open, reward, onClose, onSaved }: RewardMan
         }
         description={
           action?.kind === 'archive'
-            ? `Reward "${action.reward.nama_reward}" akan disembunyikan dari catalog Santri. Bisa di-restore nanti.`
+            ? `Reward "${action.reward.nama_reward}" akan disembunyikan dari catalog Siswa. Bisa di-restore nanti.`
             : action?.kind === 'restore'
-            ? `Reward "${action.reward.nama_reward}" akan dikembalikan ke catalog Santri dengan status aktif.`
+            ? `Reward "${action.reward.nama_reward}" akan dikembalikan ke catalog Siswa dengan status aktif.`
             : action?.kind === 'toggle'
-            ? `Ubah status aktif reward "${action.reward.nama_reward}"? Santri tidak akan bisa menukar reward yang non-aktif.`
+            ? `Ubah status aktif reward "${action.reward.nama_reward}"? Siswa tidak akan bisa menukar reward yang non-aktif.`
             : ''
         }
         confirmText={

@@ -5,8 +5,8 @@
  * routes/api.php Laravel.-access yang salah akan membuka akses yang tidak
  * seharusnya.
  */
-import { HttpError } from './http';
-import { hasCapability, isAdmin, isSuperAdmin, type Role } from './auth/roles';
+import { HttpError } from './http.ts';
+import { hasCapability, isAdmin, isSuperAdmin, type Role } from './auth/roles.ts';
 
 /** Sama seperti `middleware('role:a,b,c')` Laravel. */
 export function requireRole(actual: Role, allowed: readonly Role[]): void {
@@ -57,12 +57,12 @@ export function snakeToCamel(row: Record<string, unknown>): Record<string, unkno
   return out;
 }
 
-/** Bentuk JSON untuk objek `santri` — sama dengan atribut model Laravel. */
-export function serializeSantri(s: Record<string, any>) {
+/** Bentuk JSON untuk objek `siswa` — sama dengan atribut model Laravel. */
+export function serializeSiswa(s: Record<string, any>) {
   return {
     nis: s.nis,
     // `nama` di model Laravel selalu me-return users.name (sumber kebenaran),
-    // bukan kolom DB. Lihat Santri::getNamaAttribute().
+    // bukan kolom DB. Lihat Siswa::getNamaAttribute().
     nama: s.userName ?? s.nama,
     kelas: s.kelas,
     asrama: s.asrama ?? null,

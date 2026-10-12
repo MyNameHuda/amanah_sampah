@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import api from '../api/client';
 import { useToast } from './Toast';
 import { Modal } from './Modal';
+import { roleLabel } from '../utils/role';
 import { Package, ShoppingBag, Plus, Minus, Edit3, Archive, RotateCcw, User as UserIcon, Calendar, Hash } from 'lucide-react';
 
 interface ProductEvent {
@@ -179,7 +180,7 @@ export function ProductLogModal({ barcode, productName, open, onClose }: Product
                           <div className="flex items-center gap-2 text-xs text-slate-500">
                             <UserIcon className="w-3 h-3" />
                             <span>{event.actor_name ?? '—'}</span>
-                            <span className="px-1.5 py-0.5 bg-slate-100 rounded text-[10px] uppercase">{event.actor_role}</span>
+                            <span className="px-1.5 py-0.5 bg-slate-100 rounded text-[10px] uppercase">{roleLabel(event.actor_role)}</span>
                             {event.qty !== undefined && (
                               <>
                                 <span>|</span>

@@ -7,6 +7,8 @@
  */
 
 export const ROLES = [
+  // WAJIB sama persis dengan isi kolom users.role di DB (schema.ts → roleEnum).
+  // Yang berubah hanya nama tampilnya: "Santri" → "Siswa".
   'santri',
   'staff_kantin',
   'petugas_kesantrian',
@@ -18,7 +20,7 @@ export const ROLES = [
 export type Role = (typeof ROLES)[number];
 
 export const ROLE_LABELS: Record<Role, string> = {
-  santri: 'Santri',
+  santri: 'Siswa',
   staff_kantin: 'Staff Kantin',
   petugas_kesantrian: 'Petugas Kesantrian',
   admin_kesantrian: 'Admin Kesantrian',
@@ -29,7 +31,7 @@ export const ROLE_LABELS: Record<Role, string> = {
 export const isRole = (v: unknown): v is Role =>
   typeof v === 'string' && (ROLES as readonly string[]).includes(v);
 
-export const isSantri = (role: Role) => role === 'santri';
+export const isSiswa = (role: Role) => role === 'santri';
 export const isStaffKantin = (role: Role) => role === 'staff_kantin';
 export const isPetugas = (role: Role) => role === 'petugas_kesantrian';
 export const isAdmin = (role: Role) => role === 'admin_kesantrian';
@@ -49,10 +51,20 @@ export const needsPasswordReVerification = (role: Role) => isSuperAdminTier3(rol
  * ------------------------------------------------------------------ */
 export const CAPABILITIES = {
   input_verifikasi: ['petugas_kesantrian', 'admin_kesantrian', 'super_admin', 'super_admin_tier3'],
-  kelola_katalog: ['admin_kesantrian', 'super_admin', 'super_admin_tier3'],
+  // Katalog. Aturan bisnis: staff kantin boleh menambah produk & kategori,
+  // tetapi tidak boleh mengubah/meng-archive milik orang lain. Petugas ke
+  // atas boleh dua-duanya.
+  //
+  // Roster di sini adalah SATU-SATUNYA sumber kebenaran. Dulu `kelola_katalog`
+  // tidak menyertakan staff kantin padahal `serialize.ts` membolehkannya —
+  // dua definisi aturan yang sama, dan bertentangan. Sekarang
+  // `canManageProduk()` / `canEditProduk()` membaca dari tabel ini, jadi
+  // tidak bisa melenceng lagi.
+  kelola_katalog: ['staff_kantin', 'petugas_kesantrian', 'admin_kesantrian', 'super_admin', 'super_admin_tier3'],
+  kelola_katalog_edit: ['petugas_kesantrian', 'admin_kesantrian', 'super_admin', 'super_admin_tier3'],
   kelola_reward: ['admin_kesantrian', 'super_admin', 'super_admin_tier3'],
   kelola_pembelian: ['staff_kantin', 'admin_kesantrian', 'super_admin', 'super_admin_tier3'],
-  kelola_santri: ['petugas_kesantrian', 'admin_kesantrian', 'super_admin', 'super_admin_tier3'],
+  kelola_siswa: ['petugas_kesantrian', 'admin_kesantrian', 'super_admin', 'super_admin_tier3'],
   super_admin_panel: ['super_admin', 'super_admin_tier3'],
   /** hanya T3 — destructive */
   super_admin_tier3: ['super_admin_tier3'],

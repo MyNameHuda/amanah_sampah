@@ -1,6 +1,7 @@
 import { LogOut, Wrench, RefreshCw, AlertTriangle } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
 import { useMaintenance } from '../hooks/useMaintenance';
+import { roleLabel } from '../utils/role';
 
 interface MaintenancePageProps {
   children: React.ReactNode;
@@ -100,7 +101,7 @@ function FullMaintenancePage() {
             <div className="bg-white/5 border border-white/10 rounded-lg p-3 text-left">
               <p className="text-xs text-slate-400 uppercase tracking-wide mb-1">Login sebagai</p>
               <p className="text-sm text-slate-200 font-medium">{user.name}</p>
-              <p className="text-xs text-slate-500">{user.email || `NIS ${user.id}`} | {user.role}</p>
+              <p className="text-xs text-slate-500">{user.email || `NIS ${user.id}`} | {roleLabel(user.role)}</p>
             </div>
           )}
           <button

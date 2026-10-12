@@ -4,9 +4,9 @@
  * Bentuk field WAJIB sama dengan yang dikembalikan model Laravel asli,
  * karena frontend sudah membaca key tersebut secara langsung.
  */
-import { iso } from './http-guards';
-import type { Role } from './auth/roles';
-import { isAdmin, isPetugas, isStaffKantin, isSuperAdmin } from './auth/roles';
+import { iso } from './http-guards.ts';
+import { hasCapability, type Role } from './auth/roles.ts';
+import { isAdmin, isPetugas, isStaffKantin, isSuperAdmin } from './auth/roles.ts';
 
 export function serializeKategori(k: Record<string, any>) {
   return {
@@ -76,15 +76,23 @@ export function hasStock(r: Record<string, any>, qty = 1): boolean {
 }
 
 /* ------------------------------------------------------------------ *
- * Otorisasi katalog — disalin dari CatalogController.php
+ * Otorisasi katalog.
+ *
+ * Dulu kedua fungsi ini menuliskan roster role-nya sendiri ("staff kantin,
+ * petugas, admin, super admin") sementara tabel CAPABILITIES di roles.ts
+ * menuliskan roster yang BERBEDA untuk capability yang sama. Dua sumber
+ * kebenaran, dan keduanya tidak sinkron.
+ *
+ * Sekarang keduanya membaca dari CAPABILITIES, jadi aturan katalog punya
+ * satu tempat saja. Ubah rosternya di `auth/roles.ts`, bukan di sini.
  * ------------------------------------------------------------------ */
 
-/** canManageProduk(): staff kantin, petugas, admin, super admin. */
+/** Boleh menambah produk & kategori. */
 export function canManageProduk(role: Role): boolean {
-  return isStaffKantin(role) || isAdmin(role) || isSuperAdmin(role) || isPetugas(role);
+  return hasCapability(role, 'kelola_katalog');
 }
 
-/** canEditProduk(): petugas, admin, super admin. Staff kantin hanya bisa add. */
+/** Boleh mengubah / archive produk milik orang lain. Staff kantin tidak. */
 export function canEditProduk(role: Role): boolean {
-  return isAdmin(role) || isSuperAdmin(role) || isPetugas(role);
+  return hasCapability(role, 'kelola_katalog_edit');
 }

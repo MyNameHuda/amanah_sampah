@@ -2,24 +2,7 @@ import { memo, type ReactNode } from 'react';
 import { useAuth } from '../auth/AuthContext';
 import { User as UserIcon } from 'lucide-react';
 import { ProfileMenu } from './ProfileMenu';
-
-const ROLE_LABEL: Record<string, string> = {
-  'santri': 'Santri',
-  'staff_kantin': 'Staff Kantin',
-  'petugas_kesantrian': 'Petugas Kesantrian',
-  'admin_kesantrian': 'Admin Kesantrian',
-  'super_admin': 'Super Admin',
-  'super_admin_tier3': 'Super Admin (Tier 3)',
-};
-
-const ROLE_COLOR: Record<string, string> = {
-  'santri': 'bg-blue-100 text-blue-700',
-  'staff_kantin': 'bg-emerald-100 text-emerald-700',
-  'petugas_kesantrian': 'bg-violet-100 text-violet-700',
-  'admin_kesantrian': 'bg-amber-100 text-amber-700',
-  'super_admin': 'bg-rose-100 text-rose-700',
-  'super_admin_tier3': 'bg-rose-100 text-rose-700',
-};
+import { ROLE_COLOR, roleLabel } from '../utils/role';
 
 interface LayoutProps {
   children: ReactNode;
@@ -78,10 +61,10 @@ export default memo(function Layout({ children, title, titleShort, subtitle, act
               <>
                 <span
                   className={`hidden sm:inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium ${ROLE_COLOR[user.role] || 'bg-slate-100 text-slate-700'}`}
-                  aria-label={`Role: ${ROLE_LABEL[user.role] ?? user.role}`}
+                  aria-label={`Role: ${roleLabel(user.role)}`}
                 >
                   <UserIcon className="w-3 h-3" aria-hidden="true" />
-                  {ROLE_LABEL[user.role] ?? user.role}
+                  {roleLabel(user.role)}
                 </span>
                 <ProfileMenu />
               </>

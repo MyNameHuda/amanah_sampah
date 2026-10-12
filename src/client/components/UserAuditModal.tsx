@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import api from '../api/client';
 import { Modal } from './Modal';
 import { Badge } from './Badge';
+import { roleLabel } from '../utils/role';
+import { auditActionLabel, auditActionTone } from '../utils/auditAction';
 import { Activity, FileText, User as UserIcon, Calendar, Tag } from 'lucide-react';
 
 interface AuditLogEntry {
@@ -21,10 +23,8 @@ interface UserAuditResponse {
   user: { id: number; name: string; email: string | null; role: string; created_at: string };
   stats: {
     total_actions: number;
-    as_actor: number;
-    as_target: number;
-    last_activity: string | null;
     action_breakdown: Record<string, number>;
+    last_activity: string | null;
   };
   logs: AuditLogEntry[];
 }
@@ -45,43 +45,40 @@ export function UserAuditModal({ userId, userName, open, onClose }: UserAuditMod
     if (!open || !userId) return;
     setLoading(true);
     setFilter('');
-    api.get<UserAuditResponse>(`/super-admin/users/${userId}/audit`)
-      .then((r) => setData(r.data))
-      .catch(() => setData(null))
+
+    // Path lama `/super-admin/users/{id}/audit` tidak pernah ada — modal ini
+    // selalu gagal load dan menampilkan "Gagal load". Sumbernya sebenarnya
+    // dua endpoint yang memang ada: detail user + pencarian audit.
+    //
+    // `audit/search?user_id=` hanya mencocokkan AKTOR (audit_logs.user_id).
+    // Jadi kartu "Sebagai Target" yang dulu ada tidak punya sumber data dan
+    // dihapus — memamerkan angka yang selalu 0 hanya menambah mislead.
+    Promise.all([
+      api.get(`/super-admin/users/${userId}`).catch(() => null),
+      api.get(`/super-admin/audit/search?user_id=${userId}&per_page=50`).catch(() => null),
+    ])
+      .then(([u, a]) => {
+        const logs = (a?.data?.data ?? []) as AuditLogEntry[];
+        const breakdown: Record<string, number> = {};
+        for (const l of logs) breakdown[l.action] = (breakdown[l.action] ?? 0) + 1;
+        setData({
+          user: u?.data?.user ?? { id: userId, name: userName, email: null, role: '', created_at: '' },
+          stats: {
+            total_actions: logs.length,
+            action_breakdown: breakdown,
+            last_activity: logs[0]?.waktu ?? null,
+          },
+          logs,
+        });
+      })
       .finally(() => setLoading(false));
-  }, [open, userId]);
+  }, [open, userId, userName]);
 
-  const actionTones: Record<string, 'green' | 'red' | 'yellow' | 'blue' | 'gray'> = {
-    'auth.login': 'green',
-    'auth.logout': 'gray',
-    'auth.password_change': 'blue',
-    'pembelian.create': 'green',
-    'verifikasi.commit': 'green',
-    'verifikasi.cancel': 'yellow',
-    'verifikasi.open_sesi': 'blue',
-    'verifikasi.force_end': 'red',
-    'reset.start': 'yellow',
-    'reset.step1': 'yellow',
-    'reset.complete': 'green',
-    'reward.create': 'green',
-    'reward.redeem': 'green',
-    'profile.update_self': 'blue',
-    'superadmin.user_create': 'green',
-    'superadmin.user_update': 'blue',
-    'superadmin.user_delete': 'red',
-    'superadmin.force_logout': 'yellow',
-    'superadmin.password_reset': 'yellow',
-    'superadmin.toggle_suspend': 'yellow',
-    'superadmin.mode_toggle': 'yellow',
-    'superadmin.config_update': 'yellow',
-    'superadmin.cron_manual_trigger': 'blue',
-    'superadmin.reverse_transaction': 'red',
-    'superadmin.adjust_poin': 'yellow',
-    'superadmin.recompute_saldo': 'yellow',
-    'superadmin.coverage': 'blue',
-    'superadmin.audit': 'blue',
-  };
-
+  // Warna & label aksi TIDAK lagi didefinisikan di sini. Semuanya tinggal di
+  // `src/client/utils/auditAction.ts`, yang isinya mencermati nama yang
+  // benar-benar di-record server. Versi lama di file ini melenceng
+  // (superadmin.password_reset vs reset_password, toggle_suspend vs
+  // user_suspend) dan 3 aksinya tidak pernah ada sama sekali di server.
   const filtered = data?.logs.filter((log) => !filter || log.action === filter) ?? [];
 
   return (
@@ -99,18 +96,16 @@ export function UserAuditModal({ userId, userName, open, onClose }: UserAuditMod
       {!loading && data && (
         <div className="space-y-4">
           {/* Stats */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
             <div className="bg-slate-50 p-3 rounded-lg">
               <p className="text-xs text-slate-500">Total Actions</p>
               <p className="text-xl font-bold text-slate-800">{data.stats.total_actions}</p>
             </div>
             <div className="bg-slate-50 p-3 rounded-lg">
-              <p className="text-xs text-slate-500">Sebagai Actor</p>
-              <p className="text-xl font-bold text-blue-700">{data.stats.as_actor}</p>
-            </div>
-            <div className="bg-slate-50 p-3 rounded-lg">
-              <p className="text-xs text-slate-500">Sebagai Target</p>
-              <p className="text-xl font-bold text-amber-700">{data.stats.as_target}</p>
+              <p className="text-xs text-slate-500">Jenis Aksi</p>
+              <p className="text-xl font-bold text-blue-700">
+                {Object.keys(data.stats.action_breakdown).length}
+              </p>
             </div>
             <div className="bg-slate-50 p-3 rounded-lg">
               <p className="text-xs text-slate-500">Aktivitas Terakhir</p>
@@ -135,13 +130,14 @@ export function UserAuditModal({ userId, userName, open, onClose }: UserAuditMod
                 <button
                   key={action}
                   onClick={() => setFilter(action)}
-                  className={`text-xs px-2 py-0.5 rounded font-mono ${
+                  title={action}
+                  className={`text-xs px-2 py-0.5 rounded ${
                     filter === action
                       ? 'bg-slate-800 text-white'
                       : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                   }`}
                 >
-                  {action} ({count})
+                  {auditActionLabel(action)} ({count})
                 </button>
               ))}
           </div>
@@ -173,11 +169,11 @@ export function UserAuditModal({ userId, userName, open, onClose }: UserAuditMod
                         })}
                       </td>
                       <td>
-                        <Badge tone="gray">{log.role}</Badge>
+                        <Badge tone="gray">{roleLabel(log.role)}</Badge>
                       </td>
                       <td>
-                        <Badge tone={actionTones[log.action] || 'gray'} icon={<Tag className="w-3 h-3" />}>
-                          {log.action}
+                        <Badge tone={auditActionTone(log.action)} icon={<Tag className="w-3 h-3" />}>
+                          {auditActionLabel(log.action)}
                         </Badge>
                       </td>
                       <td>

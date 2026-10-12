@@ -4,6 +4,7 @@ import api from '../api/client';
 import { useToast } from './Toast';
 import { Modal } from './Modal';
 import { useAuth } from '../auth/AuthContext';
+import { roleLabel } from '../utils/role';
 
 interface Biodata {
   phone: string | null;
@@ -125,7 +126,7 @@ export function EditProfileModal({ open, onClose, onUpdated }: EditProfileModalP
       open={open}
       onClose={onClose}
       title="Edit Biodata"
-      description={`${user?.name} | ${user?.role.replace(/_/g, ' ')}`}
+      description={`${user?.name} | ${user ? roleLabel(user.role) : ''}`}
       size="md"
       footer={
         <>

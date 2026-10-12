@@ -102,7 +102,7 @@ export interface User {
   suspended_at: string | null;
 }
 
-export interface Santri {
+export interface Siswa {
   nis: string;
   nama: string;
   kelas: string;

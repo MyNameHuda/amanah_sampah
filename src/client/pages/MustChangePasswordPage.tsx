@@ -5,6 +5,8 @@ import { redirectForRole } from '../auth/redirectForRole';
 import { useToast } from '../components/Toast';
 import { LoadingButton } from '../components/LoadingButton';
 import api from '../api/client';
+import { roleLabel } from '../utils/role';
+import { PASSWORD_MIN_SELF, checkPasswordLength, describeProblems } from '../../shared/password-policy';
 import { ShieldCheck, KeyRound, LogOut, AlertCircle } from 'lucide-react';
 
 export default function MustChangePasswordPage() {
@@ -24,8 +26,13 @@ export default function MustChangePasswordPage() {
     e.preventDefault();
     setError(null);
 
-    if (newPassword.length < 8) {
-      setError('Password minimal 8 karakter.');
+    // Self-service: minimal 8, tanpa syarat komposisi huruf. Endpoint
+    // /api/auth/change-password memang memakai policy longgar — BEDA dari
+    // "reset password user" milik super admin yang minimal 12. Angka 8 di
+    // sini diambil dari konstanta yang sama dengan server, bukan diketik ulang.
+    const len = checkPasswordLength(newPassword);
+    if (!len.ok) {
+      setError(`Password ${describeProblems(len.problems)}.`);
       return;
     }
     if (newPassword !== confirmPassword) {
@@ -45,6 +52,8 @@ export default function MustChangePasswordPage() {
       clearMustChangePassword();
       await refreshAuth();
       // Explicit navigate ke dashboard (avoid multi-redirect chain via /login + role-based)
+      // PENTING: teruskan `user.role` APA ADABANYA — redirectForRole mencocokkan
+      // nilai teknis ('super_admin'), bukan label humans ('Super Admin').
       navigate(redirectForRole(user?.role ?? 'santri'), { replace: true });
     } catch (e: any) {
       const data = e.response?.data;
@@ -79,7 +88,7 @@ export default function MustChangePasswordPage() {
             </div>
             <div className="min-w-0 text-left">
               <p className="text-sm font-medium text-slate-800 truncate">{user.name}</p>
-              <p className="text-xs text-slate-500 capitalize">{user.role.replace(/_/g, ' ')}</p>
+              <p className="text-xs text-slate-500 capitalize">{roleLabel(user.role)}</p>
             </div>
           </div>
         )}
@@ -123,10 +132,10 @@ export default function MustChangePasswordPage() {
               className="input"
               value={newPassword}
               onChange={(e) => { setNewPassword(e.target.value); setError(null); }}
-              placeholder="min 8 karakter"
+              placeholder={`min ${PASSWORD_MIN_SELF} karakter`}
               autoFocus
               required
-              minLength={8}
+              minLength={PASSWORD_MIN_SELF}
               aria-describedby={`${errorId} ${newPwId}-hint`}
               aria-invalid={!!error || undefined}
             />
@@ -149,7 +158,7 @@ export default function MustChangePasswordPage() {
               onChange={(e) => { setConfirmPassword(e.target.value); setError(null); }}
               placeholder="ketik ulang password baru"
               required
-              minLength={8}
+              minLength={PASSWORD_MIN_SELF}
               aria-invalid={!!error || undefined}
             />
           </div>

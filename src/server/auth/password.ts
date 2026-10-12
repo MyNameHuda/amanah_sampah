@@ -21,24 +21,17 @@ export function verifyPassword(plain: string, hash: string): Promise<boolean> {
   return bcrypt.compare(plain, hash);
 }
 
-/**
- * Aturan minimal password. Dipakai juga oleh endpoint bootstrap-admin
- * supaya env var yang tidak valid ketahuan lebih awal.
- */
-export const PASSWORD_MIN_LENGTH = 12;
-
-export interface PasswordPolicyResult {
-  ok: boolean;
-  problems: string[];
-}
-
-export function checkPasswordPolicy(pw: string): PasswordPolicyResult {
-  const problems: string[] = [];
-  if (!pw || pw.length < PASSWORD_MIN_LENGTH) {
-    problems.push(`minimal ${PASSWORD_MIN_LENGTH} karakter`);
-  }
-  if (!/[a-z]/.test(pw)) problems.push('harus ada huruf kecil');
-  if (!/[A-Z]/.test(pw)) problems.push('harus ada huruf besar');
-  if (!/[0-9]/.test(pw)) problems.push('harus ada angka');
-  return { ok: problems.length === 0, problems };
-}
+/* Aturan password TIDAK didefinisikan di sini — semuanya ada di
+ * `src/shared/password-policy.ts` supaya backend dan frontend memakai angka
+ * yang sama. Dulu aturan hanya hidup di file ini, sementara frontend
+ * menulis ulang "minimal 8 karakter" sendiri-sendiri, dan keduanya berbeda
+ * dari apa yang benar-benar divalidasi server. */
+export {
+  PASSWORD_MIN_LENGTH,
+  PASSWORD_MIN_SELF,
+  PASSWORD_RULES,
+  checkPasswordPolicy,
+  checkPasswordLength,
+  describeProblems,
+} from '../../shared/password-policy.ts';
+export type { PasswordPolicyResult } from '../../shared/password-policy.ts';

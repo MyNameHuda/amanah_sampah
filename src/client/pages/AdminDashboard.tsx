@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
-import api, { type Santri } from '../api/client';
+import api, { type Siswa } from '../api/client';
 import Layout from '../components/Layout';
 import { useToast } from '../components/Toast';
 import { Badge, PoinBadge } from '../components/Badge';
@@ -65,8 +65,8 @@ const FORCE_END_TEMPLATES: { id: string; label: string; description: string; ico
 
 export default function AdminDashboard() {
   const toast = useToast();
-  const [tab, setTab] = useState<'santri' | 'active' | 'coverage' | 'produk'>('santri');
-  const [santri, setSantri] = useState<Santri[]>([]);
+  const [tab, setTab] = useState<'siswa' | 'active' | 'coverage' | 'produk'>('siswa');
+  const [siswa, setSiswa] = useState<Siswa[]>([]);
   const [coverage, setCoverage] = useState<any[]>([]);
   const [produkList, setProdukList] = useState<any[]>([]);
   const [produkLogModal, setProdukLogModal] = useState<{ barcode: string; name: string } | null>(null);
@@ -101,11 +101,11 @@ export default function AdminDashboard() {
   async function refresh() {
     try {
       const [s, c, p] = await Promise.all([
-        api.get('/santri?active=1'),
+        api.get('/siswa?active=1'),
         api.get('/super-admin/coverage'),
         api.get('/produk?include_archived=1&per_page=200'),
       ]);
-      setSantri(s.data.data || []);
+      setSiswa(s.data.data || []);
       setCoverage(c.data.data || []);
       setProdukList(p.data.data || []);
     } catch (err: any) {
@@ -115,7 +115,7 @@ export default function AdminDashboard() {
 
   async function refreshActiveSesi() {
     try {
-      const r = await api.get('/admin/verifikasi/active');
+      const r = await api.get('/verifikasi/active');
       setActiveSesi(r.data.data || []);
     } catch (err: any) {
       // Silent fail for auto-refresh
@@ -125,7 +125,7 @@ export default function AdminDashboard() {
   async function viewLog(sesiId: number) {
     setLogLoading(true);
     try {
-      const r = await api.get(`/admin/verifikasi/${sesiId}/log`);
+      const r = await api.get(`/verifikasi/${sesiId}/log`);
       setLogModal(r.data);
     } catch (err: any) {
       toast.error('Gagal load log.');
@@ -142,7 +142,7 @@ export default function AdminDashboard() {
     }
     setForceEndLoading(true);
     try {
-      const r = await api.post(`/admin/verifikasi/${forceEndModal.id}/force-end`, {
+      const r = await api.post(`/verifikasi/${forceEndModal.id}/force-end`, {
         alasan: forceEndAlasan,
       });
       toast.success(r.data.message);
@@ -156,13 +156,13 @@ export default function AdminDashboard() {
     }
   }
 
-  const filteredSantri = useMemo(() => {
+  const filteredSiswa = useMemo(() => {
     const q = search.toLowerCase();
-    if (!q) return santri;
-    return santri.filter((s) =>
+    if (!q) return siswa;
+    return siswa.filter((s) =>
       s.nis.toLowerCase().includes(q) || s.nama.toLowerCase().includes(q) || s.kelas.toLowerCase().includes(q)
     );
-  }, [santri, search]);
+  }, [siswa, search]);
 
   const stats = useMemo(() => {
     const blockedCount = coverage.filter((c) => c.is_blocked).length;
@@ -176,7 +176,7 @@ export default function AdminDashboard() {
     return { blockedCount, totalOpen, avgCoverage, activeSesiCount };
   }, [coverage, activeSesi]);
 
-  async function startReset(s: Santri) {
+  async function startReset(s: Siswa) {
     setResetModal({ nis: s.nis, nama: s.nama, poin: s.current_poin });
     setResetStep(1);
     try {
@@ -225,7 +225,7 @@ export default function AdminDashboard() {
     >
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-        <StatCard icon={<Users className="w-4 h-4" />} label="Total Siswa" value={santri.length} tone="default" />
+        <StatCard icon={<Users className="w-4 h-4" />} label="Total Siswa" value={siswa.length} tone="default" />
         <StatCard icon={<AlertCircle className="w-4 h-4" />} label="Blocked" value={stats.blockedCount} tone={stats.blockedCount > 0 ? 'danger' : 'success'} />
         <StatCard
           icon={<Activity className="w-4 h-4" />}
@@ -239,7 +239,7 @@ export default function AdminDashboard() {
 
       {/* Tabs */}
       <div className="flex gap-1 mb-4 border-b border-slate-200 overflow-x-auto scrollbar-thin">
-        <button onClick={() => setTab('santri')} className={`px-4 py-2.5 font-medium text-sm transition-all border-b-2 -mb-px whitespace-nowrap flex items-center gap-2 ${tab === 'santri' ? 'border-brand-600 text-brand-700' : 'border-transparent text-slate-600 hover:text-slate-800'}`}>
+        <button onClick={() => setTab('siswa')} className={`px-4 py-2.5 font-medium text-sm transition-all border-b-2 -mb-px whitespace-nowrap flex items-center gap-2 ${tab === 'siswa' ? 'border-brand-600 text-brand-700' : 'border-transparent text-slate-600 hover:text-slate-800'}`}>
           <UserCheck className="w-4 h-4" />Siswa
         </button>
         <button onClick={() => setTab('active')} className={`px-4 py-2.5 font-medium text-sm transition-all border-b-2 -mb-px whitespace-nowrap flex items-center gap-2 ${tab === 'active' ? 'border-brand-600 text-brand-700' : 'border-transparent text-slate-600 hover:text-slate-800'}`}>
@@ -256,7 +256,7 @@ export default function AdminDashboard() {
       </div>
 
       {/* Tab: SISWA */}
-      {tab === 'santri' && (
+      {tab === 'siswa' && (
         <div className="card">
           <div className="flex flex-col sm:flex-row gap-3 mb-4">
             <div className="relative flex-1">
@@ -273,7 +273,7 @@ export default function AdminDashboard() {
             </button>
           </div>
 
-          {filteredSantri.length === 0 ? (
+          {filteredSiswa.length === 0 ? (
             <EmptyState icon={<Users className="w-6 h-6" />} title="Tidak ada siswa" />
           ) : (
             <>
@@ -281,7 +281,7 @@ export default function AdminDashboard() {
                   360px, dan kolom "Aksi" jadi terpotong paling kanan — padahal
                   itu satu-satunya kolom interaktif. */}
               <ul className="md:hidden space-y-2">
-                {filteredSantri.map((s) => (
+                {filteredSiswa.map((s) => (
                   <li key={s.nis} className="border border-slate-200 rounded-lg p-3 flex items-center gap-3">
                     <div className="min-w-0 flex-1">
                       <p className="font-medium text-slate-800 text-sm truncate">{s.nama}</p>
@@ -312,7 +312,7 @@ export default function AdminDashboard() {
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredSantri.map((s) => (
+                    {filteredSiswa.map((s) => (
                       <tr key={s.nis} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
                         <td className="py-2 px-3 font-mono text-xs">{s.nis}</td>
                         <td className="py-2 px-3 font-medium text-slate-800">{s.nama}</td>
@@ -435,7 +435,7 @@ export default function AdminDashboard() {
       {tab === 'coverage' && (
         <div className="card">
           <div className="flex items-center justify-between mb-3">
-            <h3 className="font-semibold text-slate-800">Coverage Rate per Santri</h3>
+            <h3 className="font-semibold text-slate-800">Coverage Rate per Siswa</h3>
             <Badge tone="gray">Σ(match) / Σ(utang) × 100%</Badge>
           </div>
           {coverage.length === 0 ? (

@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, type ReactNode } from 'react';
 import { useLocation } from 'react-router-dom';
 import { Menu, X, ChevronRight } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
+import { roleLabel } from '../utils/role';
 
 export interface DashboardNavItem {
   /** Unique ID untuk active-state detection. Mis. 'health', 'users'. */
@@ -189,7 +190,7 @@ export function DashboardLayout({ title, titleShort, subtitle, headerActions, na
               <div className="min-w-0 flex-1 leading-tight">
                 <p className="text-sm font-medium text-slate-800 truncate">{user.name}</p>
                 <p className="text-[10px] text-slate-500 truncate capitalize">
-                  {user.role.replace(/_/g, ' ')}
+                  {roleLabel(user.role)}
                 </p>
               </div>
             </div>

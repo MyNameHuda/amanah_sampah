@@ -1,5 +1,6 @@
 import { lazy, Suspense, useState, useRef, useEffect } from 'react';
 import { useAuth } from '../auth/AuthContext';
+import { roleLabel } from '../utils/role';
 import { UserCircle2, LogOut, ChevronDown } from 'lucide-react';
 
 // Modal edit biodata — lazy-load on first click (EditProfileModal 6KB).
@@ -48,7 +49,7 @@ export function ProfileMenu() {
           <div className="px-4 py-3 border-b border-slate-100">
             <p className="text-sm font-medium text-slate-800 truncate">{user.name}</p>
             <p className="text-xs text-slate-500 truncate">{user.email || `ID #${user.id}`}</p>
-            <p className="text-xs text-slate-400 mt-1 capitalize">{user.role.replace(/_/g, ' ')}</p>
+            <p className="text-xs text-slate-400 mt-1 capitalize">{roleLabel(user.role)}</p>
           </div>
           <button
             onClick={() => { setOpen(false); setShowEdit(true); }}

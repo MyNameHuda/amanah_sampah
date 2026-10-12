@@ -12,8 +12,8 @@
 import { SignJWT, jwtVerify } from 'jose';
 import { createHash, randomBytes } from 'node:crypto';
 import { eq, and } from 'drizzle-orm';
-import { getDb, getSql, schema } from '../db/index';
-import type { Role } from './roles';
+import { getDb, getSql, schema } from '../db/index.ts';
+import type { Role } from './roles.ts';
 
 const JWT_ISSUER = 'amanah-sampah';
 const DEFAULT_TTL_SECONDS = 60 * 60 * 12; // 12 jam, sama dengan SESSION_LIFETIME di Laravel

@@ -6,8 +6,8 @@
  * transaksi hanya karena audit gagal akan jauh lebih berbahaya daripada
  * audit yang hilang satu baris.
  */
-import { getDb, schema } from './db/index';
-import type { Role } from './auth/roles';
+import { getDb, schema } from './db/index.ts';
+import type { Role } from './auth/roles.ts';
 
 export interface AuditOpts {
   /** Default: 'system'. Dipakai saat user belum tersedia (mis. gagal login). */

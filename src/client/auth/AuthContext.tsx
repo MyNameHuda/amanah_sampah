@@ -8,7 +8,7 @@ interface AuthState {
   token: string | null;
   loading: boolean;
   mustChangePassword: boolean;
-  login: (login: string, password: string) => Promise<void>;
+  login: (login: string, password: string, rememberMe?: boolean) => Promise<void>;
   logout: () => Promise<void>;
   refreshAuth: () => Promise<void>;
   clearMustChangePassword: () => void;
@@ -51,10 +51,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [token]);
 
-  const login = async (loginId: string, password: string) => {
+  /**
+   * @param rememberMe Menambah masa berlaku token dari 60 menit jadi 7 hari
+   *   (`REMEMBER_TTL_MINUTES` di `api/auth/login.ts`). Backend sudah mendukung
+   *   sejak awal, tapi belum pernah diteruskan dari sini — jadi checkbox
+   *   "Ingat saya" di halaman login tidak akan berefek apa pun tanpa ini.
+   */
+  const login = async (loginId: string, password: string, rememberMe = false) => {
     setLoading(true);
     try {
-      const r = await api.post('/auth/login', { login: loginId, password });
+      const r = await api.post('/auth/login', { login: loginId, password, remember_me: rememberMe });
       const { token, user } = r.data;
       localStorage.setItem('amanah_token', token);
       localStorage.setItem('amanah_user', JSON.stringify(user));

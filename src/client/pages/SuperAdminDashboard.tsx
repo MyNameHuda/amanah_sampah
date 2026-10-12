@@ -9,6 +9,13 @@ import { EmptyState } from '../components/Skeleton';
 import { RewardManagerModal } from '../components/RewardManagerModal';
 import { RewardManagerList } from '../components/RewardManagerList';
 import { useConfirm } from '../hooks/useConfirm';
+import { roleLabel } from '../utils/role';
+import {
+  PASSWORD_MIN_LENGTH,
+  PASSWORD_RULES,
+  checkPasswordPolicy,
+  describeProblems,
+} from '../../shared/password-policy';
 import {
   Activity, Users, Settings, BarChart3, FileText, Shield, AlertTriangle,
   Power, Lock, RefreshCw, Trash2, RotateCcw, ChevronRight, Loader2,
@@ -28,7 +35,7 @@ interface ConfigEntry {
 interface HealthData {
   db_size_kb: number;
   photo_storage_kb: number;
-  total_active_santri: number;
+  total_active_siswa: number;
   total_staff: number;
   recent_error_logs_count: number;
   modes: { is_maintenance: boolean; is_readonly: boolean };
@@ -143,8 +150,8 @@ export default function SuperAdminDashboard() {
   const [users, setUsers] = useState<any[]>([]);
   const [auditLogs, setAuditLogs] = useState<any[]>([]);
   const [coverage, setCoverage] = useState<any[]>([]);
-  const [reverseModal, setReverseModal] = useState(false);
-  const [reverseAlasan, setReverseAlasan] = useState('');
+  const [recomputeBusy, setRecomputeBusy] = useState(false);
+  const [reverseModal, setReverseModal] = useState(false);  const [reverseAlasan, setReverseAlasan] = useState('');
   const [reversePassword, setReversePassword] = useState('');
   const [reverseTxId, setReverseTxId] = useState('');
   const [reverseLoading, setReverseLoading] = useState(false);
@@ -184,7 +191,7 @@ export default function SuperAdminDashboard() {
   async function refreshAll() {
     try {
       const [h, u, a, c] = await Promise.all([
-        api.get('/super-admin/health'),
+        api.get('/super-admin/system-health'),
         api.get('/super-admin/users'),
         api.get('/super-admin/audit/search'),
         api.get('/super-admin/coverage'),
@@ -210,7 +217,7 @@ export default function SuperAdminDashboard() {
     try {
       await api.post('/super-admin/mode', { key, value });
       toast.success(`${key} = ${value ? 'ON' : 'OFF'}`);
-      const h = await api.get('/super-admin/health');
+      const h = await api.get('/super-admin/system-health');
       setHealth(h.data);
     } catch (err: any) {
       toast.error(err.response?.data?.message || 'Gagal toggle.');
@@ -218,26 +225,31 @@ export default function SuperAdminDashboard() {
   }
 
   async function toggleSuspend(userId: number, currentSuspended: boolean) {
-    if (currentSuspended) {
-      const ok = await confirm({
-        title: 'Buka akses user ini?',
-        description: 'User akan bisa login dan melakukan aktivitas seperti semula kembali.',
-        confirmText: 'Ya, Unsuspend',
-        tone: 'info',
-      });
-      if (!ok) return;
-    } else {
-      const ok = await confirm({
-        title: 'Suspend user ini?',
-        description:
-          'Semua akses user ini akan langsung dicabut: sesi di perangkatnya logout paksa, dan login berikutnya ditolak. User tidak akan bisa melakukan transaksi, pengembalian, redeem reward, maupun mengubah profil sampai di-unsuspend.',
-        confirmText: 'Ya, Suspend',
-        tone: 'danger',
-      });
-      if (!ok) return;
-    }
+    // Endpoint aslinya adalah POST /super-admin/users/{userId}/suspend dengan
+    // body { suspended, alasan }. Dulu dipanggil `/toggle-suspend` — path itu
+    // tidak pernah ada, jadi tombol suspend/unsuspend selalu gagal diam-diam.
+    //
+    // `alasan` WAJIB (min 10 karakter) dan disimpan sebagai `admin_alasan` di
+    // audit log. Karena itu confirm biasa diganti prompt: satu dialog, dan
+    // alasan yang terkumpul benar-benar bisa diaudit.
+    const alasan = await prompt({
+      title: currentSuspended ? 'Buka akses user ini?' : 'Suspend user ini?',
+      description: currentSuspended
+        ? 'User akan bisa login dan melakukan aktivitas seperti semula kembali.'
+        : 'Semua akses dicabut: sesi di perangkatnya logout paksa, dan login berikutnya ditolak. User tidak bisa transaksi, verifikasi, redeem reward, atau mengubah profil sampai di-unsuspend.',
+      label: 'Alasan (tercatat di audit log)',
+      placeholder: 'mis. mencurigai akses dipakai orang lain',
+      tone: currentSuspended ? 'info' : 'danger',
+      confirmText: currentSuspended ? 'Ya, Unsuspend' : 'Ya, Suspend',
+      validate: (v) => (v.trim().length < 10 ? 'Alasan minimal 10 karakter.' : undefined),
+    });
+    if (alasan === null) return;
+
     try {
-      const r = await api.post(`/super-admin/users/${userId}/toggle-suspend`);
+      const r = await api.post(`/super-admin/users/${userId}/suspend`, {
+        suspended: !currentSuspended,
+        alasan: alasan.trim(),
+      });
       const revoked = r.data?.tokens_revoked ?? 0;
       toast.success(
         currentSuspended
@@ -270,14 +282,15 @@ export default function SuperAdminDashboard() {
   async function resetPassword(userId: number) {
     const newPw = await prompt({
       title: 'Reset Password User',
-      description: 'Password baru minimal 8 karakter. User harus ganti password ini di login berikutnya.',
+      description: `Password baru: ${PASSWORD_RULES.join(' • ')}. User harus ganti password ini di login berikutnya.`,
       label: 'Password Baru',
-      placeholder: 'Minimal 8 karakter',
+      placeholder: `Minimal ${PASSWORD_MIN_LENGTH} karakter`,
       type: 'password',
       tone: 'warning',
       confirmText: 'Reset',
       validate: (val) => {
-        if (!val || val.length < 8) return 'Password minimal 8 karakter.';
+        const p = checkPasswordPolicy(val);
+        if (!p.ok) return `Password tidak memenuhi syarat: ${describeProblems(p.problems)}.`;
         return undefined;
       },
     });
@@ -299,10 +312,51 @@ export default function SuperAdminDashboard() {
     });
     if (!ok) return;
     try {
-      const r = await api.post('/super-admin/cron/run');
-      toast.success('Cron: ' + (r.data.message || 'OK'));
+      // Endpoint aslinya POST /super-admin/cron (tanpa `/run`). Responsnya
+      // `{ ran, at, results, tables }` — TIDAK punya `message`, jadi dulu
+      // toast selalu jatuh ke teks generik "OK" walau job-nya gagal.
+      const r = await api.post('/super-admin/cron', { job: 'all' });
+      const res = r.data?.results ?? {};
+      const purge = res.purge_tokens;
+      const archive = res.archive_audit;
+      const parts: string[] = [];
+      if (purge) parts.push(purge.ok ? `token kadaluwarsa dibersihkan: ${purge.purged}` : `token: ${purge.error ?? 'gagal'}`);
+      if (archive) {
+        parts.push(archive.ok
+          ? `audit diarsipkan: ${archive.copied} disalin, ${archive.deleted} dihapus`
+          : `audit: ${archive.error ?? 'gagal'}`);
+      }
+      toast.success(`Cron selesai — ${parts.join('; ') || 'tidak ada job dijalankan'}`);
+      const h = await api.get('/super-admin/system-health');
+      setHealth(h.data);
     } catch (err: any) {
       toast.error(err.response?.data?.message || 'Cron gagal.');
+    }
+  }
+
+  async function doRecomputeSaldo() {
+    // `POST /api/super-admin/recompute-saldo` tanpa `nis` memproses SEMUA
+    // Siswa: `current_poin` di-set ulang menjadi Σ poin_delta di ledger, dan
+    // status blokir di-refresh mengikuti batas negatif. Berguna setelah ada
+    // koreksi manual yang membuat saldo melenceng dari penjumlahannya.
+    const ok = await confirm({
+      title: 'Hitung ulang saldo semua Siswa?',
+      description:
+        'current_poin setiap Siswa akan di-set ulang menjadi total delta di poin_ledger, dan status blokir di-refresh. Tindakan ini tercatat di audit log.',
+      confirmText: 'Hitung Ulang',
+      tone: 'warning',
+    });
+    if (!ok) return;
+    setRecomputeBusy(true);
+    try {
+      const r = await api.post('/super-admin/recompute-saldo', { alasan: 'Hitung ulang saldo dari dashboard super admin' });
+      toast.success(r.data.message);
+      const c = await api.get('/super-admin/coverage');
+      setCoverage(c.data.data || []);
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || 'Hitung ulang saldo gagal.');
+    } finally {
+      setRecomputeBusy(false);
     }
   }
 
@@ -317,7 +371,10 @@ export default function SuperAdminDashboard() {
     }
     setReverseLoading(true);
     try {
-      const r = await api.post(`/super-admin/reverse-transaction/${parseInt(reverseTxId)}`, {
+      // Endpoint aslinya POST /super-admin/transactions/{txId}/reverse.
+      // Body-nya sudah benar (alasan + password_reverify), cuma path-nya
+      // yang tidak pernah ada.
+      const r = await api.post(`/super-admin/transactions/${parseInt(reverseTxId)}/reverse`, {
         alasan: reverseAlasan,
         password_reverify: reversePassword,
       });
@@ -333,8 +390,8 @@ export default function SuperAdminDashboard() {
   }
 
   /**
-   * Pencarian user: substring match (bukan prefix) supaya "santri" tetap
-   * menemukan role `santri` di tengah string, dan `admin` menemukan
+   * Pencarian user: substring match (bukan prefix) supaya "siswa" tetap
+   * menemukan role `siswa` di tengah string, dan `admin` menemukan
    * `super_admin_tier3`. Pencocokan dilakukan case-insensitive terhadap
    * name, email, role, dan id — keempatnya yang mungkin diketik admin saat
    * ia tahu identifier yang dicari, tapi tidak ingat persis ejaannya.
@@ -450,7 +507,7 @@ export default function SuperAdminDashboard() {
           <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
             <StatCard compact icon={<Database className="w-5 h-5" />} label="Database Size" value={`${health.db_size_kb.toFixed(1)} KB`} />
             <StatCard compact icon={<HardDrive className="w-5 h-5" />} label="Photo Storage" value={`${health.photo_storage_kb} KB`} />
-            <StatCard compact icon={<Users className="w-5 h-5" />} label="Active Santri" value={health.total_active_santri} tone="success" />
+            <StatCard compact icon={<Users className="w-5 h-5" />} label="Active Siswa" value={health.total_active_siswa} tone="success" />
             <StatCard compact icon={<Users className="w-5 h-5" />} label="Staff + Petugas" value={health.total_staff} />
             <StatCard
               compact
@@ -485,7 +542,7 @@ export default function SuperAdminDashboard() {
             onArchive={async (r) => {
               const ok = await confirm({
                 title: 'Archive Reward?',
-                description: `Reward "${r.nama_reward}" akan disembunyikan dari catalog Santri. Bisa di-restore nanti.`,
+                description: `Reward "${r.nama_reward}" akan disembunyikan dari catalog Siswa. Bisa di-restore nanti.`,
                 confirmText: 'Ya, Archive',
                 tone: 'warning',
               });
@@ -501,7 +558,7 @@ export default function SuperAdminDashboard() {
             onRestore={async (r) => {
               const ok = await confirm({
                 title: 'Restore Reward?',
-                description: `Reward "${r.nama_reward}" akan dikembalikan ke catalog Santri dengan status aktif.`,
+                description: `Reward "${r.nama_reward}" akan dikembalikan ke catalog Siswa dengan status aktif.`,
                 confirmText: 'Ya, Restore',
                 tone: 'info',
               });
@@ -518,7 +575,7 @@ export default function SuperAdminDashboard() {
               const next = !r.status_aktif;
               const ok = await confirm({
                 title: next ? 'Aktifkan Reward?' : 'Nonaktifkan Reward?',
-                description: `Reward "${r.nama_reward}" akan di-${next ? 'aktifkan (Santri bisa redeem)' : 'nonaktifkan (Santri tidak bisa redeem)'} — tanpa meng-archive.`,
+                description: `Reward "${r.nama_reward}" akan di-${next ? 'aktifkan (Siswa bisa redeem)' : 'nonaktifkan (Siswa tidak bisa redeem)'} — tanpa meng-archive.`,
                 confirmText: next ? 'Aktifkan' : 'Nonaktifkan',
                 tone: 'info',
               });
@@ -552,7 +609,7 @@ export default function SuperAdminDashboard() {
               Threshold Poin
             </h3>
             <p className="text-sm text-slate-500 mb-3">
-              Atur batas minimum poin. Santri otomatis ter-block saat saldo turun ke nilai ini.
+              Atur batas minimum poin. Siswa otomatis ter-block saat saldo turun ke nilai ini.
             </p>
 
             {health?.config && health.config.length > 0 ? (
@@ -667,7 +724,7 @@ export default function SuperAdminDashboard() {
                           : <Badge tone="green">Aktif</Badge>}
                       </div>
                       <div className="mt-1.5">
-                        <Badge tone="gray">{u.role}</Badge>
+                        <Badge tone="gray">{roleLabel(u.role)}</Badge>
                       </div>
                     </div>
                     <div className="flex gap-1.5 border-t border-slate-100 bg-slate-50 p-2">
@@ -716,7 +773,7 @@ export default function SuperAdminDashboard() {
                         <td className="py-2">{u.id}</td>
                         <td className="font-medium">{u.name}</td>
                         <td className="text-xs">{u.email ?? '—'}</td>
-                        <td><Badge tone="gray">{u.role}</Badge></td>
+                        <td><Badge tone="gray">{roleLabel(u.role)}</Badge></td>
                         <td>
                           {u.suspended_at ? <Badge tone="red">SUSPENDED</Badge> : <Badge tone="green">Aktif</Badge>}
                         </td>
@@ -739,7 +796,18 @@ export default function SuperAdminDashboard() {
 
       {tab === 'coverage' && (
         <div className="card">
-          <h3 className="font-semibold text-slate-800 mb-3">Coverage per Santri</h3>
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+            <h3 className="font-semibold text-slate-800">Coverage per Siswa</h3>
+            <button
+              onClick={doRecomputeSaldo}
+              disabled={recomputeBusy}
+              className="btn btn-secondary text-xs"
+              title="Set ulang current_poin setiap Siswa menjadi total delta di poin_ledger"
+            >
+              <RefreshCw className={`w-3 h-3 ${recomputeBusy ? 'animate-spin' : ''}`} aria-hidden="true" />
+              {recomputeBusy ? 'Menghitung…' : 'Hitung Ulang Saldo'}
+            </button>
+          </div>
           {coverage.length === 0 ? (
             <EmptyState icon={<BarChart3 className="w-6 h-6" />} title="Tidak ada data" />
           ) : (
@@ -832,7 +900,7 @@ export default function SuperAdminDashboard() {
                       <span className="text-xs text-slate-500 tabular-nums">
                         {new Date(l.waktu).toLocaleString('id-ID')}
                       </span>
-                      <Badge tone="gray">{l.role}</Badge>
+                      <Badge tone="gray">{roleLabel(l.role)}</Badge>
                     </div>
                     <p className="font-mono text-xs text-slate-800 mt-1.5 break-all">{l.action}</p>
                     <p className="font-mono text-[11px] text-slate-500 mt-1 break-all line-clamp-3">
@@ -856,7 +924,7 @@ export default function SuperAdminDashboard() {
                     {auditLogs.map((l: any) => (
                       <tr key={l.id} className="border-b border-slate-100 hover:bg-slate-50">
                         <td className="py-1.5 text-xs text-slate-600 whitespace-nowrap">{new Date(l.waktu).toLocaleString('id-ID')}</td>
-                        <td><Badge tone="gray">{l.role}</Badge></td>
+                        <td><Badge tone="gray">{roleLabel(l.role)}</Badge></td>
                         <td className="font-mono text-xs">{l.action}</td>
                         <td className="font-mono text-xs text-slate-500 max-w-md truncate">{JSON.stringify(l.payload)}</td>
                       </tr>

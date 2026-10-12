@@ -5,7 +5,7 @@
  * validasi, exception handler, dan middleware `auth:sanctum`.
  */
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { verifyToken, AuthError, type TokenPayload } from './auth/jwt';
+import { verifyToken, AuthError, type TokenPayload } from './auth/jwt.ts';
 
 export interface Ctx {
   req: VercelRequest;
@@ -22,17 +22,29 @@ export class HttpError extends Error {
   readonly suspended: boolean;
   /** Marker `password_reverify` dibaca frontend untuk buka dialog password */
   readonly actionRequired: string | null;
+  /**
+   * Daftar alasan kegagalan yang lebih spesifik, mis. ["minimal 12 karakter"].
+   * Dipakai endpoint password agar frontend bisa menampilkan APA yang kurang,
+   * bukan cuma "tidak memenuhi syarat" yang tidak bisa ditindaklanjuti.
+   */
+  readonly problems: string[] | null;
 
   constructor(
     status: number,
     message: string,
-    opts: { field?: string; suspended?: boolean; actionRequired?: string } = {},
+    opts: {
+      field?: string;
+      suspended?: boolean;
+      actionRequired?: string;
+      problems?: string[];
+    } = {},
   ) {
     super(message);
     this.status = status;
     this.field = opts.field ?? null;
     this.suspended = opts.suspended ?? false;
     this.actionRequired = opts.actionRequired ?? null;
+    this.problems = opts.problems ?? null;
   }
 
   /** Bentuk error Laravel ValidationException: { login: ["Kredensial salah."] } */
@@ -46,6 +58,7 @@ export class HttpError extends Error {
     }
     if (this.suspended) body.suspended = true;
     if (this.actionRequired) body.action_required = this.actionRequired;
+    if (this.problems?.length) body.problems = this.problems;
     return body;
   }
 }

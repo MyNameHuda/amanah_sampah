@@ -24,7 +24,7 @@ select:focus:not(:focus-visible) {
 
 @layer components {
   .btn {
-    @apply inline-flex items-center justify-center gap-2 px-4 py-2 rounded-md font-medium transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-brand-500;
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2 rounded-md font-medium transition-all duration-150 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-brand-500;
   }
   .btn-primary {
     @apply bg-brand-600 text-white hover:bg-brand-700 active:bg-brand-700 shadow-sm hover:shadow;
@@ -53,6 +53,51 @@ select:focus:not(:focus-visible) {
   .card-hover {
     @apply hover:shadow-md hover:border-slate-300;
   }
+
+  /* Kartu form login. Bayangan sengaja berlapis tiga bukan satu blok:
+     contact shadow tipis menandai tepi bidang, ambient shadow lebar
+     memberi kedalaman, dan sisanya menjaga kartu tetap "ringan". Satu
+     `shadow-lg` monolithic akan membuat form terasa seperti dialog, bukan
+     seperti halaman. */
+  .login-card {
+    @apply bg-white rounded-2xl ring-1 ring-slate-200/70;
+    box-shadow:
+      0 1px 2px 0 rgb(15 23 42 / 0.04),
+      0 2px 6px -2px rgb(15 23 42 / 0.05),
+      0 16px 40px -16px rgb(15 23 42 / 0.18);
+  }
+
+  /* Cahaya lembut di belakang kartu. Tiga lapis: glow tengah yang menempel
+     tepat pada kartu (membuatnya terasa duduk di atas permukaan, bukan
+     ditempel), hijau brand dari atas mengikuti arah pandang ke heading, dan
+     kuning hangat menyentil dari kanan bawah supaya permukaan tidak
+     monoton. Di layar besar panel kanan jadi didominasi warna pucat tanpa
+     lapis tengah ini. Murni dekoratif — nol byte tambahan, dan dimatikan
+     otomatis oleh blok prefers-reduced-motion di bawah. */
+  .login-aura {
+    background:
+      radial-gradient(58% 46% at 50% 42%, rgb(22 163 74 / 0.13) 0%, transparent 70%),
+      radial-gradient(70% 60% at 50% 0%, rgb(22 163 74 / 0.12) 0%, transparent 72%),
+      radial-gradient(60% 55% at 88% 100%, rgb(250 204 21 / 0.11) 0%, transparent 70%);
+  }
+}
+
+/* Autofill browser — Chrome dan Safari memaksa latar kuning yang TIDAK bisa
+   ditimpa dengan `background-color` biasa. Satu-satunya cara adalah
+   box-shadow inset ber-spread 0 yang menutupi area 1000px, lalu warna teks
+   dipaksa lewat -webkit-text-fill-color. Tanpa ini, field yang ter-autofill
+   (tablet kantin dipakai bersama, jadi autofofill hampir selalu aktif) berubah
+   kuning dan terbaca seperti keadaan error, bukan seperti isian yang sah. */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+input:-webkit-autofill:active {
+  -webkit-text-fill-color: #0f172a;
+  -webkit-box-shadow: 0 0 0 1000px #fff inset;
+  caret-color: #0f172a;
+  /* Chrome sering mensorot field autofill beberapa detik setelah load;
+     transisi yang sangat panjang membuat highlight itu tak kasat mata. */
+  transition: background-color 6000s ease-in-out 0s;
 }
 
 /* --- Mobile ergonomics ----------------------------------------------------
@@ -65,6 +110,16 @@ select:focus:not(:focus-visible) {
 @media (max-width: 767px) {
   .btn {
     min-height: 44px;
+  }
+
+  /* Target sentuh non-.btn di layar kecil. Aturan WCAG 2.5.8 mensyaratkan
+     24px, tapi pedoman Material/HIG elevate ke 44px untuk kontrol yang
+     dipakai berulang (tombol lihat password, pilihan role, checkbox).
+     Padding ini menambah area sentuh tanpa mengubah tampilan di desktop —
+     box-nya tetap sebesar isinya, hanya ruang ketukanya yang melebar. */
+  .touch-target {
+    min-height: 44px;
+    min-width: 44px;
   }
 
   /* Link teks yang berfungsi sebagai action (mis. "Lupa password?")
@@ -126,7 +181,8 @@ select:focus:not(:focus-visible) {
   /* Sembunyikan decorative blobs saat reduced motion */
   .animate-pulse-soft,
   .animate-pulse,
-  .animate-spin {
+  .animate-spin,
+  .animate-drift {
     animation: none !important;
   }
 }
@@ -143,14 +199,6 @@ input[type='search']::-webkit-search-decoration {
 /* Custom focus ring for keyboard users - subtle but visible */
 :focus-visible {
   outline: 2px solid transparent;
-}
-
-/* Login decorative blob drift — subtle horizontal/vertical movement
-   untuk "alive" feel. Paired dengan motion-reduce:hidden di JSX. */
-@keyframes drift {
-  0%, 100% { transform: translate(0, 0) scale(1); }
-  33%      { transform: translate(20px, -15px) scale(1.05); }
-  66%      { transform: translate(-10px, 20px) scale(0.95); }
 }
 
 /* Login entrance choreography — staggered reveal.
@@ -180,4 +228,31 @@ input[type='search']::-webkit-search-decoration {
 @keyframes glow-pulse {
   0%, 100% { box-shadow: 0 0 0 0 rgb(187 247 208 / 0); }
   50%      { box-shadow: 0 0 0 8px rgb(187 247 208 / 0.4); }
+}
+
+/* Login gagal — satu denyut pendek pada banner error.
+   Pakai transform (bukan margin), jadi tidak memicu layout thrash. 180ms
+   sudah cukup untuk "ada yang salah" tanpa terasa seperti error_rate animasi
+   yang bikinetail. Otomatis dimatikan oleh blok prefers-reduced-motion di atas. */
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  20%      { transform: translateX(-5px); }
+  40%      { transform: translateX(5px); }
+  60%      { transform: translateX(-3px); }
+  80%      { transform: translateX(3px); }
+}
+.animate-shake {
+  animation: shake 0.18s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+}
+
+/* Garis-garis buku tulis sangat samar di panel form. Subjek aplikasi ini
+   adalah petugas yang menulis — sebuah ledger. Teksturnya cuma gradient
+   linear, jadi nol byte di-download; opacity rendah supaya tidak
+   terlihat sebagai corak, melainkan "kertas". */
+.bg-ledger {
+  background-image:
+    linear-gradient(to bottom, transparent 0, transparent 27px,
+      rgb(15 23 42 / 0.045) 28px, transparent 29px);
+  background-size: 100% 28px;
+  background-position: 0 12px;
 }

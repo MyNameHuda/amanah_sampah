@@ -4,14 +4,14 @@
  * Berisi aturan bisnis yang dipakai di beberapa endpoint:
  *  - DUTASI_IDLE_MENIT: ambang sesi menggantung
  *  - openDebtsFor(): utang terbuka per barcode
- *  - assertSantriNotSuspended(): guard akun siswa
+ *  - assertSiswaNotSuspended(): guard akun siswa
  *  - photoUrl(): menyusun URL foto bukti dari bucket Supabase
  */
 import { and, eq, isNull, sum, min } from 'drizzle-orm';
-import { getDb, schema, type Database } from './db/index';
-import { HttpError } from './http';
-import { iso } from './http-guards';
-import { isSuperAdmin, type Role } from './auth/roles';
+import { getDb, schema, type Database } from './db/index.ts';
+import { HttpError } from './http.ts';
+import { iso } from './http-guards.ts';
+import { isSuperAdmin, type Role } from './auth/roles.ts';
 
 /**
  * Sesi dianggap "menggantung" setelah tidak ada aktivitas selama ini.
@@ -65,7 +65,7 @@ export async function openDebtsFor(nis: string) {
  *
  * Super admin dilewati: dia jalur pemulihan untuk koreksi.
  */
-export async function assertSantriNotSuspended(nis: string, actorRole: Role): Promise<void> {
+export async function assertSiswaNotSuspended(nis: string, actorRole: Role): Promise<void> {
   if (isSuperAdmin(actorRole)) return;
 
   const db = getDb();
@@ -74,9 +74,9 @@ export async function assertSantriNotSuspended(nis: string, actorRole: Role): Pr
       nama: schema.users.name,
       suspendedAt: schema.users.suspendedAt,
     })
-    .from(schema.santri)
-    .innerJoin(schema.users, eq(schema.users.id, schema.santri.userId))
-    .where(eq(schema.santri.nis, nis))
+    .from(schema.siswa)
+    .innerJoin(schema.users, eq(schema.users.id, schema.siswa.userId))
+    .where(eq(schema.siswa.nis, nis))
     .limit(1);
 
   if (rows[0]?.suspendedAt) {
@@ -146,18 +146,18 @@ export function presentSesi(
 }
 
 /** Bentuk ringkas siswa untuk response verifikasi. */
-export async function presentSantri(nis: string) {
+export async function presentSiswa(nis: string) {
   const db = getDb();
   const rows = await db
     .select({
-      nis: schema.santri.nis,
+      nis: schema.siswa.nis,
       nama: schema.users.name,
-      currentPoin: schema.santri.currentPoin,
-      isBlocked: schema.santri.isBlocked,
+      currentPoin: schema.siswa.currentPoin,
+      isBlocked: schema.siswa.isBlocked,
     })
-    .from(schema.santri)
-    .innerJoin(schema.users, eq(schema.users.id, schema.santri.userId))
-    .where(eq(schema.santri.nis, nis))
+    .from(schema.siswa)
+    .innerJoin(schema.users, eq(schema.users.id, schema.siswa.userId))
+    .where(eq(schema.siswa.nis, nis))
     .limit(1);
   const r = rows[0];
   if (!r) return null;

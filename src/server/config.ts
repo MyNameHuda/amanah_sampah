@@ -8,7 +8,7 @@
  * sumber kebingungan itu sepenuhnya.
  */
 import { eq } from 'drizzle-orm';
-import { getDb, schema } from './db/index';
+import { getDb, schema } from './db/index.ts';
 
 export async function getConfig(key: string): Promise<string | null> {
   const db = getDb();

@@ -19,10 +19,6 @@ export default {
     'motion-reduce:hidden', 'motion-reduce:animate-none',
     // Screen-reader utilities
     'sr-only', 'focus:not-sr-only',
-    // w-4.5 used in feature icons (new in Tailwind 3.4+ but worth ensuring)
-    'w-4.5', 'h-4.5',
-    // Decorative blur shapes on login right panel
-    'bg-brand-200/40', 'bg-emerald-200/30', 'bg-teal-100/40',
   ],
   theme: {
     extend: {

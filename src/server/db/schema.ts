@@ -32,6 +32,8 @@ import {
  * saat compile, bukan saat runtime.
  * ------------------------------------------------------------------ */
 export const roleEnum = pgEnum('role', [
+  // 'santri' = nilai yang MASIH tersimpan di DB. Jangan diubah tanpa migrasi
+  // ALTER TYPE. Yang berubah hanya nama yang tampil ke user: "Siswa".
   'santri',
   'staff_kantin',
   'petugas_kesantrian',
@@ -79,10 +81,13 @@ export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
 
 /* ------------------------------------------------------------------ *
- * santri — 2026_09_20_000002_create_santri_table
+ * siswa — 2026_09_20_000002_create_santri_table
  * `nis` (nomor induk siswa) adalah primary key string, bukan integer.
  * ------------------------------------------------------------------ */
-export const santri = pgTable(
+export const siswa = pgTable(
+  // Nama tabel di DB MASIH "santri" (belum dimigrasikan). Nama export siswa
+  // dan label UI "Siswa" sudah berubah; string tabelnya sengaja dibiarkan
+  // supaya aplikasi jalan tanpa ALTER TABLE.
   'santri',
   {
     nis: varchar('nis', { length: 20 }).primaryKey(),
@@ -108,7 +113,7 @@ export const santri = pgTable(
   }),
 );
 
-export type Santri = typeof santri.$inferSelect;
+export type Siswa = typeof siswa.$inferSelect;
 
 /* ------------------------------------------------------------------ *
  * kategori_produk — 2026_09_20_000003
@@ -185,7 +190,7 @@ export const penukaranReward = pgTable(
     id: serial('id').primaryKey(),
     nis: varchar('nis', { length: 20 })
       .notNull()
-      .references(() => santri.nis),
+      .references(() => siswa.nis),
     idReward: uuid('id_reward')
       .notNull()
       .references(() => reward.idReward),
@@ -207,7 +212,7 @@ export const transaksiPembelian = pgTable(
     id: serial('id').primaryKey(),
     nis: varchar('nis', { length: 20 })
       .notNull()
-      .references(() => santri.nis),
+      .references(() => siswa.nis),
     barcode: varchar('barcode', { length: 50 })
       .notNull()
       .references(() => produk.barcode),
@@ -239,7 +244,7 @@ export const sesiVerifikasi = pgTable(
     id: serial('id').primaryKey(),
     nis: varchar('nis', { length: 20 })
       .notNull()
-      .references(() => santri.nis),
+      .references(() => siswa.nis),
     petugasId: integer('petugas_id')
       .notNull()
       .references(() => users.id),
@@ -288,7 +293,7 @@ export const poinLedger = pgTable(
     id: bigserial('id', { mode: 'number' }).primaryKey(),
     nis: varchar('nis', { length: 20 })
       .notNull()
-      .references(() => santri.nis),
+      .references(() => siswa.nis),
     sourceType: varchar('source_type', { length: 30 }).notNull(),
     sourceId: bigint('source_id', { mode: 'number' }),
     poinDelta: integer('poin_delta').notNull(),
@@ -317,7 +322,7 @@ export const resetDendaLog = pgTable(
     id: serial('id').primaryKey(),
     nis: varchar('nis', { length: 20 })
       .notNull()
-      .references(() => santri.nis),
+      .references(() => siswa.nis),
     adminId: integer('admin_id')
       .notNull()
       .references(() => users.id),

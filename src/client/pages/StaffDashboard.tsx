@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
-import api, { type Santri, type Produk, type TransaksiPembelian } from '../api/client';
+import api, { type Siswa, type Produk, type TransaksiPembelian } from '../api/client';
 import Layout from '../components/Layout';
 import { useToast } from '../components/Toast';
 import { Badge, PoinBadge } from '../components/Badge';
@@ -32,7 +32,7 @@ interface CartItem {
 export default function StaffDashboard() {
   const toast = useToast();
   const [nis, setNis] = useState('');
-  const [santri, setSantri] = useState<Santri | null>(null);
+  const [siswa, setSiswa] = useState<Siswa | null>(null);
   const [barcode, setBarcode] = useState('');
   const [produk, setProduk] = useState<Produk | null>(null);
   const [qty, setQty] = useState(1);
@@ -50,21 +50,25 @@ export default function StaffDashboard() {
     // di sini, stat card "Hari Ini" & "Items" selalu 0 sampai staff checkout
     // pertama kali di sesi itu. Memuat ulang juga penting setelah reload halaman:
     // transaksi yang sudah tercatat sebelumnya akan ter-count 0.
-    api.get('/pembelian/history')
+    // Riwayat transaksi staff ini dilayani endpoint yang sama dengan POST-nya:
+    // `GET /api/pembelian` (method-nya yang membedakan, bukan path terpisah).
+    // Dulu dipanggil `/pembelian/history` — path itu tidak pernah ada, jadi
+    // stat card "Hari Ini" diam-diam selalu 0.
+    api.get('/pembelian')
       .then((r) => setHistory(r.data.data || []))
       .catch(() => { /* stat tidak kritis — biarkan 0 */ });
   }, []);
 
   async function lookupNis() {
     if (!nis) return;
-    setSantri(null);
+    setSiswa(null);
     try {
-      const r = await api.get(`/santri/${nis}`);
-      const data = r.data.santri;
+      const r = await api.get(`/siswa/${nis}`);
+      const data = r.data.siswa;
       // Backend menolak transaksi untuk siswa suspended dengan 422. Now
       // staff langsung tahu di step lookup, tidak perlu memindai barang
       // dulu untuk ditolak di akhir.
-      setSantri({ ...data, is_suspended: !!r.data.is_suspended });
+      setSiswa({ ...data, is_suspended: !!r.data.is_suspended });
       setActiveStep(2);
     } catch {
       toast.error(`NIS ${nis} tidak ditemukan.`);
@@ -121,7 +125,7 @@ export default function StaffDashboard() {
   }
 
   function resetForm() {
-    setNis(''); setSantri(null); setBarcode(''); setProduk(null); setQty(1);
+    setNis(''); setSiswa(null); setBarcode(''); setProduk(null); setQty(1);
     setCart([]);
     setActiveStep(1);
   }
@@ -132,7 +136,7 @@ export default function StaffDashboard() {
   }
 
   function addToCart() {
-    if (!produk || !santri || qty < 1) return;
+    if (!produk || !siswa || qty < 1) return;
     if (qty > 999) { toast.error('Qty max 999 per item.'); return; }
     setCart((prev) => {
       // Cek kalau barang dengan barcode yang sama sudah ada -> merge qty
@@ -169,14 +173,14 @@ export default function StaffDashboard() {
   }
 
   async function finalizeCart() {
-    if (!santri || cart.length === 0) return;
+    if (!siswa || cart.length === 0) return;
     setSubmitting(true);
     try {
       const r = await api.post('/pembelian', {
         nis: nis,
         items: cart.map((c) => ({ barcode: c.barcode, qty: c.qty })),
       });
-      const newPoin = r.data.santri.current_poin;
+      const newPoin = r.data.siswa.current_poin;
       const itemsCount = cart.length;
       const totalUnits = cart.reduce((s, c) => s + c.qty, 0);
       // Tidak ada catatan "siswa terblokir" di sini. Blokir hanya terjadi
@@ -184,13 +188,13 @@ export default function StaffDashboard() {
       // poin negatif saja belum berarti terblokir — note seperti itu
       // menyesatkan. Status blokir yang sebenarnya sudah ditampilkan
       // lewat badge BLOCKED di panel siswa, yang memang di-update di
-      // bawah dari `r.data.santri.is_blocked`.
+      // bawah dari `r.data.siswa.is_blocked`.
       toast.success(
-        `${itemsCount} produk (${totalUnits} unit) dibeli. Poin: dari ${santri.current_poin} menjadi ${newPoin}.`
+        `${itemsCount} produk (${totalUnits} unit) dibeli. Poin: dari ${siswa.current_poin} menjadi ${newPoin}.`
       );
-      setSantri({ ...santri, current_poin: newPoin, is_blocked: r.data.santri.is_blocked });
+      setSiswa({ ...siswa, current_poin: newPoin, is_blocked: r.data.siswa.is_blocked });
       setCart([]);
-      const h = await api.get('/pembelian/history');
+      const h = await api.get('/pembelian');
       setHistory(h.data.data);
       setBarcode(''); setProduk(null); setQty(1); setActiveStep(2);
     } catch (err: any) {
@@ -207,7 +211,7 @@ export default function StaffDashboard() {
 
   /**
    * DECISION-LOG D8 + D14:
-   *  - D8:Santri dengan `current_poin <= -50` di-block dari pembelian PLASTIK.
+   *  - D8:Siswa dengan `current_poin <= -50` di-block dari pembelian PLASTIK.
    *  - D14: Yang ter-block TETAP boleh beli produk non-plastik
    *         (`is_excluded_from_debit = TRUE`).
    *
@@ -217,8 +221,8 @@ export default function StaffDashboard() {
    * menghentikan kantin. Dulu tidak ada guard sama sekali di POS — staff baru
    * tahu setelah mengisi seluruh keranjang lalu menekan Selesaikan.
    */
-  const blockedByCart = !!santri?.is_blocked && cartPlastikCount > 0;
-  const suspendedStudent = !!santri?.is_suspended;
+  const blockedByCart = !!siswa?.is_blocked && cartPlastikCount > 0;
+  const suspendedStudent = !!siswa?.is_suspended;
 
   return (
     <Layout
@@ -266,7 +270,7 @@ export default function StaffDashboard() {
           <div className={`card card-hover transition-all ${activeStep === 1 ? 'ring-2 ring-brand-500' : ''}`}>
             <div className="flex items-center gap-2 mb-3">
               <div className={`w-8 h-8 rounded-full flex items-center justify-center font-semibold text-sm ${activeStep >= 1 ? 'bg-brand-600 text-white' : 'bg-slate-200 text-slate-500'}`}>
-                {santri ? <CheckCircle2 className="w-4 h-4" /> : '1'}
+                {siswa ? <CheckCircle2 className="w-4 h-4" /> : '1'}
               </div>
               <h3 className="font-semibold text-slate-800">Input NIS Siswa</h3>
             </div>
@@ -287,18 +291,18 @@ export default function StaffDashboard() {
               </button>
             </div>
 
-            {santri && (
-              <div className={`mt-3 p-3 rounded-lg border ${suspendedStudent ? 'border-slate-400 bg-slate-100' : santri.is_blocked ? 'border-red-200 bg-red-50' : 'border-green-200 bg-green-50/50'} animate-slide-up`}>
+            {siswa && (
+              <div className={`mt-3 p-3 rounded-lg border ${suspendedStudent ? 'border-slate-400 bg-slate-100' : siswa.is_blocked ? 'border-red-200 bg-red-50' : 'border-green-200 bg-green-50/50'} animate-slide-up`}>
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
-                    <p className="font-semibold text-slate-800 truncate">{santri.nama}</p>
-                    <p className="text-xs text-slate-500">{santri.kelas} | NIS {santri.nis}</p>
+                    <p className="font-semibold text-slate-800 truncate">{siswa.nama}</p>
+                    <p className="text-xs text-slate-500">{siswa.kelas} | NIS {siswa.nis}</p>
                   </div>
                   <div className="flex flex-col items-end gap-1 shrink-0">
-                    <PoinBadge value={santri.current_poin} />
+                    <PoinBadge value={siswa.current_poin} />
                     {suspendedStudent ? (
                       <Badge tone="red" icon={<LockIcon className="w-3 h-3" />}>Akun disuspend</Badge>
-                    ) : santri.is_blocked ? (
+                    ) : siswa.is_blocked ? (
                       <Badge tone="yellow" icon={<AlertTriangle className="w-3 h-3" />}>BLOCKED</Badge>
                     ) : (
                       <Badge tone="green">Aman</Badge>
@@ -320,11 +324,11 @@ export default function StaffDashboard() {
                   </div>
                 )}
 
-                {!suspendedStudent && santri.prior_open_count !== undefined && (
+                {!suspendedStudent && siswa.prior_open_count !== undefined && (
                   <div className="mt-2 pt-2 border-t border-slate-200/60 text-xs text-slate-600 flex items-center gap-3">
-                    <span>Open debt: <strong>{santri.prior_open_count}</strong></span>
+                    <span>Open debt: <strong>{siswa.prior_open_count}</strong></span>
                     <span className="text-slate-300" aria-hidden="true">|</span>
-                    <span>Penalty tier: <strong>{santri.penalty_tier}/unit</strong></span>
+                    <span>Penalty tier: <strong>{siswa.penalty_tier}/unit</strong></span>
                   </div>
                 )}
               </div>
@@ -343,9 +347,9 @@ export default function StaffDashboard() {
             {/* Quick camera scan button — primary UX for kudnyaan POS */}
             <button
               onClick={() => setShowScanner(true)}
-              disabled={!santri}
+              disabled={!siswa}
               className="btn btn-primary w-full mb-3"
-              title={santri ? 'Buka kamera untuk scan barcode' : 'Cari siswa dulu (Step 1)'}
+              title={siswa ? 'Buka kamera untuk scan barcode' : 'Cari siswa dulu (Step 1)'}
             >
               <Camera className="w-4 h-4" />
               Scan Kamera (Barcode)
@@ -401,7 +405,7 @@ export default function StaffDashboard() {
               <div className="flex-1 flex items-end">
                 <button
                   className="btn btn-secondary w-full"
-                  disabled={!santri || !produk || qty < 1}
+                  disabled={!siswa || !produk || qty < 1}
                   onClick={addToCart}
                 >
                   <Plus className="w-4 h-4" />
@@ -480,7 +484,7 @@ export default function StaffDashboard() {
                   <div role="alert" className="mb-2 flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-2.5 text-xs text-red-800">
                     <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" aria-hidden="true" />
                     <span>
-                      <strong>{santri?.nama} sedang ter-block</strong> dan keranjang masih ada
+                      <strong>{siswa?.nama} sedang ter-block</strong> dan keranjang masih ada
                       {' '}<strong>{cartPlastikUnits} unit plastik</strong>. Sesuai aturan, siswa
                       ter-block tidak boleh membeli produk kemasan plastik. Hapus item plastik
                       dari keranjang, atau minta admin reset poin dulu.
@@ -493,7 +497,7 @@ export default function StaffDashboard() {
                     blocked tetap tampil di sini (kontekstual dengan isi keranjang). */}
                 <button
                   className="btn btn-primary w-full hidden lg:inline-flex"
-                  disabled={!santri || cart.length === 0 || submitting || blockedByCart || suspendedStudent}
+                  disabled={!siswa || cart.length === 0 || submitting || blockedByCart || suspendedStudent}
                   onClick={finalizeCart}
                 >
                   {submitting ? (
@@ -570,7 +574,7 @@ export default function StaffDashboard() {
             </div>
             <button
               className={`btn flex-1 min-w-0 ${suspendedStudent ? 'btn-secondary' : blockedByCart ? 'btn-secondary' : 'btn-primary'}`}
-              disabled={!santri || submitting || blockedByCart || suspendedStudent}
+              disabled={!siswa || submitting || blockedByCart || suspendedStudent}
               onClick={finalizeCart}
             >
               {submitting ? (
